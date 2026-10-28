@@ -20,7 +20,7 @@
 <link rel="shortcut icon" href="./icons/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
-<title>GatoSudokuAI 1.30</title>
+<title>GatoSudokuAI 1.31</title>
 <style>
 :root{--bg:#f5f4fb;--panel:#fff;--panel2:#f0eef9;--text:#23243a;--muted:#777990;--line:#dfdced;--primary:#7357dc;--primary2:#9c71ed;--primary-soft:#eee9ff;--good:#168b61;--goodbg:#e1f8ed;--bad:#d84557;--badbg:#fff0f0;--gold:#bb7900;--shadow:0 14px 40px rgba(45,35,93,.09);--cell:#fff;--related:#f0edff;--selected:#ded6ff;--given:#38354f;--entry:#6244d5;--radius:22px}
 html[data-theme="dark"]{--bg:#151421;--panel:#211f31;--panel2:#2c293f;--text:#f5f3ff;--muted:#b1aec7;--line:#403b57;--primary:#a892ff;--primary2:#8065ec;--primary-soft:#352b59;--good:#5ee0a8;--goodbg:#1c3b34;--bad:#ff8490;--badbg:#46252e;--gold:#ffd078;--shadow:0 14px 40px rgba(0,0,0,.24);--cell:#252236;--related:#302c48;--selected:#4a3c77;--given:#fff;--entry:#c0b2ff}
@@ -237,7 +237,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 @media(max-width:380px){.daily-calendar-weekdays,.daily-calendar-grid{gap:3px}.daily-day{min-height:43px}.daily-day small{font-size:7px}}
 
 
-/* GatoSudokuAI 1.30: o percentual escolhido controla números tipográficos e ilustrações. */
+/* GatoSudokuAI 1.31: o percentual escolhido controla números tipográficos e ilustrações. */
 .sudoku-board.number-size-30 .sudoku-cell .digit{font-size:clamp(4.5px,calc(16.8vw / var(--n)),10.8px)!important;}
 .sudoku-board.number-size-50 .sudoku-cell .digit{font-size:clamp(7.5px,calc(28vw / var(--n)),18px)!important;}
 .sudoku-board.number-size-65 .sudoku-cell .digit{font-size:clamp(9.75px,calc(36.4vw / var(--n)),23.4px)!important;}
@@ -444,10 +444,20 @@ function saveState(options={}){
 }
 function syncSnapshotFromLocal(){return {updatedAt:Number(localStateUpdatedAt)||0,profile:{name:String(profile?.name||'Jogador'),provider:String(profile?.provider||'anonymous'),uid:String(profile?.uid||''),email:String(profile?.email||''),guestNameConfirmed:!!profile?.guestNameConfirmed},settings,progress,game,suspendedMainGame,suspendedDailyGame,currentView};}
 function stableCloudValue(value){
- if(Array.isArray(value))return value.map(stableCloudValue);
+ // Normaliza os mesmos tipos que o sanitizador do Firestore antes de comparar.
+ // Sem isso, Date, NaN/Infinity, BigInt ou propriedades não serializáveis podiam
+ // produzir fingerprints diferentes antes e depois da ida à nuvem.
+ if(value===undefined||typeof value==='function'||typeof value==='symbol')return undefined;
+ if(typeof value==='bigint')return String(value);
+ if(typeof value==='number'&&!Number.isFinite(value))return null;
+ if(value instanceof Date)return Number.isFinite(value.getTime())?value.getTime():null;
+ if(Array.isArray(value))return value.map(item=>{const clean=stableCloudValue(item);return clean===undefined?null:clean;});
  if(value&&typeof value==='object'){
    const out={};
-   Object.keys(value).sort().forEach(key=>{if(value[key]!==undefined)out[key]=stableCloudValue(value[key]);});
+   Object.keys(value).sort().forEach(key=>{
+     const clean=stableCloudValue(value[key]);
+     if(clean!==undefined)Object.defineProperty(out,key,{value:clean,enumerable:true,configurable:true,writable:true});
+   });
    return out;
  }
  return value;
@@ -463,14 +473,32 @@ function cloudContentFingerprint(snapshot){
  }
  return JSON.stringify(stableCloudValue(copy));
 }
+function cloudFingerprintToken(snapshot){
+ // Token compacto para identificar um conflito já resolvido, sem duplicar um backup
+ // potencialmente grande no localStorage. Não é usado como controle de segurança.
+ const raw=cloudContentFingerprint(snapshot);let a=2166136261,b=2246822519;
+ for(let i=0;i<raw.length;i++){const c=raw.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^c,3266489917);}
+ return `${raw.length}:${(a>>>0).toString(16)}${(b>>>0).toString(16)}`;
+}
+function cloudConflictDecisionKey(uid){return `gatosudokuai_cloud_conflict_decision_v1_${encodeURIComponent(String(uid||''))}`;}
+function readCloudConflictDecision(uid){
+ try{const x=JSON.parse(localStorage.getItem(cloudConflictDecisionKey(uid))||'null');return x&&x.schema===1&&typeof x.localToken==='string'&&typeof x.remoteToken==='string'?{schema:1,localToken:x.localToken,remoteToken:x.remoteToken,retries:Number(x.retries)||0,at:Number(x.at)||0}:null;}catch(_){return null;}
+}
+function writeCloudConflictDecision(uid,localSnapshot,remoteSnapshot,retries=0){
+ try{localStorage.setItem(cloudConflictDecisionKey(uid),JSON.stringify({schema:1,localToken:cloudFingerprintToken(localSnapshot),remoteToken:cloudFingerprintToken(remoteSnapshot),retries:Number(retries)||0,at:Date.now()}));return true;}catch(err){console.warn('Não foi possível registrar a decisão de conflito:',err);return false;}
+}
+function clearCloudConflictDecision(uid){try{if(uid)localStorage.removeItem(cloudConflictDecisionKey(uid));}catch(_){}}
 function cloudSyncMetaKey(uid){return `gatosudokuai_cloud_sync_meta_v1_${encodeURIComponent(String(uid||''))}`;}
 function readCloudSyncMeta(uid){
  try{
    const raw=localStorage.getItem(cloudSyncMetaKey(uid));if(!raw)return null;
    const value=JSON.parse(raw);
-   return value&&value.schema===1&&typeof value.fingerprint==='string'
-     ?{schema:1,fingerprint:value.fingerprint,remoteAt:Number(value.remoteAt)||0}
-     :null;
+   if(!value||value.schema!==1||typeof value.fingerprint!=='string')return null;
+   let fingerprint=value.fingerprint;
+   // Migra fingerprints gravados por versões anteriores para a comparação normalizada
+   // atual, evitando conflitos artificiais causados apenas pela atualização do algoritmo.
+   try{const parsed=JSON.parse(fingerprint);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))fingerprint=cloudContentFingerprint(parsed);}catch(_){}
+   return {schema:1,fingerprint,remoteAt:Number(value.remoteAt)||0};
  }catch(_){return null;}
 }
 function writeCloudSyncMeta(uid,snapshot,remoteAt){
@@ -597,6 +625,31 @@ async function syncCloudNow(options={}){
    if(profile.uid!==uid||bridge.user?.uid!==uid)return false;
    lastCloudWriteAt=Date.now();
    if(result?.direction==='conflict'){
+     const decision=readCloudConflictDecision(uid),localToken=cloudFingerprintToken(initialSnapshot),remoteToken=cloudFingerprintToken(result.snapshot);
+     // Se a mesma divergência reaparecer depois de o usuário ter escolhido o aparelho,
+     // não perguntamos de novo imediatamente: repetimos uma vez o envio autorizado.
+     // Uma mudança nova em qualquer lado gera tokens diferentes e exige nova escolha.
+     if(decision&&decision.localToken===localToken&&decision.remoteToken===remoteToken){
+       if(decision.retries<1){
+         writeCloudConflictDecision(uid,initialSnapshot,result.snapshot,decision.retries+1);
+         pendingCloudConflict=null;cloudReadyUid=uid;cloudSyncStatus='syncing';
+         cloudSyncError='A mesma divergência já foi resolvida manualmente. Reaplicando a escolha e verificando a gravação.';
+         cloudSavePending=true;cloudForcePending=true;cloudForcedUploadPending=true;
+         if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;}
+         if(!options.quiet)toast('A escolha anterior continua válida para estas mesmas cópias. Reconfirmando o envio à nuvem.');
+         refreshAccountUI();return false;
+       }
+       // Não abre o mesmo diálogo indefinidamente. Após uma segunda falha, preserva
+       // o conteúdo local e informa que o estado remoto não permaneceu como esperado.
+       if(!options.manual){
+         pendingCloudConflict=null;cloudSavePending=false;cloudForcePending=false;cloudReadyUid=uid;
+         cloudSyncStatus='error';cloudSyncError='conflict-resolution-not-sticking: a mesma cópia remota reapareceu após a escolha e uma nova tentativa. O progresso local foi preservado; verifique outros dispositivos/abas e a gravação do Firebase antes de tentar novamente.';
+         if(!options.quiet)toast('O mesmo conflito reapareceu após a tentativa automática. Seu progresso local foi preservado; consulte o status da sincronização.');
+         refreshAccountUI();return false;
+       }
+       // Uma sincronização iniciada manualmente permite ao usuário reabrir a decisão.
+       clearCloudConflictDecision(uid);
+     }
      pendingCloudConflict={uid,localSnapshot:initialSnapshot,remoteSnapshot:result.snapshot,remoteAt:Number(result.remoteAt)||0,lastBackupAt:Number(result.lastBackupAt)||0,reason:result.reason||'concurrent-changes'};
      cloudSavePending=false;cloudForcePending=false;cloudReadyUid='';cloudSyncStatus='conflict';
      cloudSyncError='O progresso local e o da nuvem mudaram de forma independente. Nenhuma cópia foi sobrescrita; escolha qual preservar.';
@@ -634,6 +687,10 @@ async function syncCloudNow(options={}){
    const acceptedSnapshot=result.snapshot||syncSnapshotFromLocal();
    const acceptedRemoteAt=Number(result.remoteAt)||Number(result.lastBackupAt)||cloudLastBackupAt||Number(acceptedSnapshot.updatedAt)||0;
    const metaSaved=writeCloudSyncMeta(uid,acceptedSnapshot,acceptedRemoteAt);
+   // Mantém a decisão explícita de cópia local após o primeiro envio confirmado:
+   // uma verificação concorrente ainda pode ver a revisão antiga. Ela só é descartada
+   // quando uma sincronização normal confirma que nuvem e dispositivo convergiram.
+   if(!options.forceUpload)clearCloudConflictDecision(uid);
    cloudSyncStatus='ok';cloudSyncError='';cloudReadyUid=uid;pendingCloudConflict=null;
    // Se o usuário alterou algo enquanto o envio ocorria, a referência fica no que foi
    // realmente confirmado na nuvem; a nova alteração será enviada numa próxima rodada.
@@ -663,14 +720,14 @@ async function resolveCloudConflict(choice){
    const ok=applyCloudSnapshot(conflict.remoteSnapshot);
    if(!ok){cloudSyncStatus='error';cloudSyncError='local-save-failed: não foi possível gravar localmente a cópia escolhida da nuvem';refreshAccountUI();return false;}
    cloudLastBackupAt=conflict.lastBackupAt||conflict.remoteAt||0;profile.lastBackupAt=cloudLastBackupAt;
-   pendingCloudConflict=null;closeModal();cloudReadyUid=uid;cloudSyncStatus='warning';cloudSyncError='A cópia da nuvem foi aplicada. Confirmando a referência de sincronização…';
-   writeCloudSyncMeta(uid,conflict.remoteSnapshot,conflict.remoteAt||conflict.lastBackupAt);
-   saveState({skipCloud:true,preserveTimestamp:true});cloudSavePending=true;cloudForcePending=false;refreshAccountUI();
+   pendingCloudConflict=null;clearCloudConflictDecision(uid);closeModal();cloudReadyUid=uid;cloudSyncStatus='warning';cloudSyncError='A cópia da nuvem foi aplicada. Confirmando a referência de sincronização…';
+   saveState({skipCloud:true,preserveTimestamp:true});writeCloudSyncMeta(uid,syncSnapshotFromLocal(),conflict.remoteAt||conflict.lastBackupAt);cloudSavePending=true;cloudForcePending=false;refreshAccountUI();
    if(!cloudSaveTimer)cloudSaveTimer=setTimeout(runQueuedCloudSync,120);toast('Cópia da nuvem aplicada. Conferindo a sincronização…');return true;
  }
  if(choice==='device'){
-   // A escolha do usuário resolve este conflito de forma explícita. Cancela qualquer
-   // temporizador anterior e limpa a fila automática para que só o envio forçado rode.
+   // Registra a decisão exata antes do envio. Se o mesmo conflito reaparecer por uma
+   // verificação concorrente, tentamos reaplicar esta escolha uma vez sem perguntar de novo.
+   writeCloudConflictDecision(uid,conflict.localSnapshot,conflict.remoteSnapshot,0);
    pendingCloudConflict=null;closeModal();cloudReadyUid=uid;cloudSavePending=false;cloudForcePending=false;
    if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;}
    return await syncCloudNow({quiet:false,manual:true,forceUpload:true});
@@ -1092,7 +1149,7 @@ function renderSettings(){
  <div class="achievement"><div class="medal">🗺️</div><div><strong>Campanha — Reino dos Gatos</strong><small>16 fases em sequência, de tabuleiros pequenos a 9×9 difíceis. Cada vitória libera a próxima fase e dá 1 a 3 estrelas (3 sem dicas, 2 com até 2 dicas). Ao abrir o mapa, seu gatinho percorre o caminho conquistado.</small></div></div>
  <div class="achievement"><div class="medal">🪙</div><div><strong>Pontos e XP</strong><small>Pontos servem para comprar dicas. XP sobe seu nível. Ambos crescem com as casas vazias e a dificuldade, com bônus por não errar, não usar dicas e terminar rápido. Cada nível pede um pouco mais de XP que o anterior.</small></div></div>
  <div class="achievement"><div class="medal">🌍</div><div><strong>Ranking global</strong><small>Na aba Progresso, entre com uma conta para ver os 10 melhores de cada categoria e nível. Só seu nome de jogador, a pontuação e a data e hora são compartilhados.</small></div></div>
- <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.30 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.30</span></div></div>`;
+ <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.31 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.31</span></div></div>`;
  if(settingsCategory==='interface')content+=`<div class="settings-card pwa-settings-card"><h3>📲 Instalação do aplicativo</h3><p>Instale o GatoSudokuAI no dispositivo para abrir em uma janela própria. Depois da primeira carga, o jogo e os arquivos principais ficam disponíveis para uso offline; recursos de conta e ranking dependem de conexão.</p><div class="setting-row"><div><strong id="pwa-install-settings-title">Instalar GatoSudokuAI</strong><small data-pwa-install-status>O navegador mostrará a opção de instalação quando estiver disponível.</small></div><button class="btn btn-soft btn-sm" data-action="install-pwa" data-pwa-install-button>Instalar app</button></div></div>`;
  const pausedGameBanner=game&&game.status==='playing'&&game.paused?`<div class="pause-settings-return"><p>😴 Sua partida está pausada. O cronômetro continua parado enquanto você ajusta as preferências.</p><button class="btn btn-primary btn-sm" data-action="return-paused-game">Voltar à pausa</button></div>`:'';
  return `<div class="section-heading" style="margin-top:8px"><div><div class="eyebrow">Personalização</div><h1>Configurações</h1><p class="muted">Ajuste o jogo ao seu jeito.</p></div></div>${pausedGameBanner}<div class="settings-layout"><aside class="settings-nav">${nav.map(([id,label])=>`<button class="${settingsCategory===id?'active':''}" data-action="settings-category" data-category="${id}">${label}</button>`).join('')}</aside><div class="settings-content">${content}</div></div>`;
@@ -1410,7 +1467,7 @@ function openModal(type,data={}){
   else if(type==='visual-reward'){const gained=(data.styles||[]).filter(i=>progress.unlockedVisuals.includes(Number(i)));title=gained.length===1?'Novo estilo desbloqueado!':'Novos estilos desbloqueados!';body=`<p>Você concluiu uma fase da campanha e ganhou ${gained.length===1?'um novo estilo':'novos estilos'} sem gastar moedas.</p>${gained.map(i=>`<div class="visual-reward-card">${visualPreview(i)}<div><strong>${VISUAL_STYLES[i].name}</strong><small>${VISUAL_STYLES[i].desc}</small></div><button class="btn btn-primary btn-sm" data-action="use-reward-visual" data-visual="${i}">Usar agora</button></div>`).join('')}`;buttons=`<button class="btn btn-outline" data-action="close-modal">Continuar com o estilo atual</button>`}
   else if(type==='cat-completed'){const cat=Math.max(0,Math.min(3,Number(data.cat)||0));title='Missão felina concluída';body=`<img class="cat-mission-art" src="${campaignArtForCat(cat,'care')}" alt="${CAMPAIGN_CAT_NAMES[cat]} sendo bem cuidado no reinado"><p><b>${CAMPAIGN_CAT_NAMES[cat]}</b> já concluiu as 16 fases e agora está no reinado, sendo muito bem cuidado. Sua aparência de campeão foi desbloqueada!</p><div class="cat-mission-note">Você pode escolher este companheiro para rever sua jornada ou selecionar outro gato, que continuará do ponto em que parou.</div>`;buttons=`<button class="btn btn-primary" data-action="close-modal">Entendi</button>`}
  else if(type==='install-pwa'){title='Instalar GatoSudokuAI';const ua=navigator.userAgent||'',ios=/iPad|iPhone|iPod/.test(ua),android=/Android/i.test(ua);body=ios?'<p>No iPhone ou iPad, abra esta página no Safari, toque em <b>Compartilhar</b> e escolha <b>Adicionar à Tela de Início</b>.</p>':android?'<p>No Android, use o botão <b>Instalar app</b> quando aparecer. Se não aparecer, abra o menu do navegador (⋮) e escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</p>':'<p>No computador, procure o ícone de instalação na barra de endereço. Se não estiver disponível, abra o menu do navegador e procure <b>Instalar GatoSudokuAI</b> ou <b>Instalar aplicativo</b>.</p>';body+='<p>Para a instalação funcionar, acesse pelo endereço seguro HTTPS, como o GitHub Pages. Se acabou de publicar, recarregue a página após o primeiro carregamento.</p>';buttons='<button class="btn btn-primary" data-action="close-modal">Entendi</button>'}
- else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.30 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
+ else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.31 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
  $('#modal').innerHTML=`<div class="modal-top"><h2 id="modal-title">${title}</h2><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></div><div class="modal-body">${body}</div><div class="modal-actions">${buttons}</div>`;$('#modal-backdrop').classList.toggle('game-style-modal',type==='board-style'&&currentView==='game');$('#modal-backdrop').classList.remove('hidden');
 }
 function closeModal(){const previousType=modalState&&modalState.type,resumeAfterStyle=!!(modalState&&modalState.resumeGameAfterModal);$('#modal-backdrop').classList.add('hidden');$('#modal-backdrop').classList.remove('game-style-modal');modalState=null;if(resumeAfterStyle&&game&&game.status==='playing'&&game.paused){game.paused=false;game.autoPaused=false;lastTick=Date.now();renderGameOnly();saveState()}if(previousType==='visual-reward'&&Array.isArray(pendingMilestoneNotice)&&pendingMilestoneNotice.length){const awards=pendingMilestoneNotice;pendingMilestoneNotice=null;openModal('milestone-reward',{awards})}}
@@ -1475,11 +1532,11 @@ function renderRanking(){
 function exportBackup(){
  try{
    const exportedProfile={name:String(profile?.name||'Convidado').slice(0,30),provider:String(profile?.provider||'anonymous'),uid:String(profile?.uid||''),email:String(profile?.email||''),guestNameConfirmed:!!profile?.guestNameConfirmed};
-   const data={app:'GatoSudokuAI',version:'1.30',schemaVersion:2,backupFormat:'gatosudokuai-json',createdAt:new Date().toISOString(),updatedAt:Number(localStateUpdatedAt)||0,settings,progress,profile:exportedProfile,game,suspendedMainGame,suspendedDailyGame,currentView};
+   const data={app:'GatoSudokuAI',version:'1.31',schemaVersion:2,backupFormat:'gatosudokuai-json',createdAt:new Date().toISOString(),updatedAt:Number(localStateUpdatedAt)||0,settings,progress,profile:exportedProfile,game,suspendedMainGame,suspendedDailyGame,currentView};
    // As propriedades essenciais continuam na raiz para preservar a compatibilidade com importadores antigos.
    const serialized=JSON.stringify(data,null,2);if(!serialized||serialized==='{}')throw new Error('empty-export');
    const blob=new Blob([serialized],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-   a.href=url;a.download=`GatoSudokuAI-backup-v1.30-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+   a.href=url;a.download=`GatoSudokuAI-backup-v1.31-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
    toast('Backup exportado. O arquivo inclui configurações, progresso e partidas em andamento, sem credenciais da conta.');return true;
  }catch(err){console.warn('Exportação do backup:',err);openModal('backup-report',{reportLevel:'error',reportTitle:'Falha ao exportar backup',reportSummary:'O arquivo não pôde ser preparado. O progresso em memória não foi alterado.',reportMessages:[String(err?.message||err)]});return false;}
 }
@@ -1549,7 +1606,7 @@ async function importBackup(file){
    const warnings=[],version=String(d.version||raw.version||'');
    if(!d.app)warnings.push('O arquivo não informa o aplicativo de origem; foi reconhecido pela estrutura dos dados.');
    if(Number(d.schemaVersion)!==2)warnings.push('Backup em formato antigo ou sem número de esquema. Os campos conhecidos foram adaptados.');
-   if(version!=='1.30')warnings.push(`Versão de origem “${version||'não identificada'}”; a versão atual é 1.30. Campos ausentes ou novos podem precisar de atualização.`);
+   if(version!=='1.31')warnings.push(`Versão de origem “${version||'não identificada'}”; a versão atual é 1.31. Campos ausentes ou novos podem precisar de atualização.`);
    if(!hasSettings)warnings.push('O arquivo não contém configurações; as configurações atuais deste dispositivo foram mantidas.');
    if(!hasProgress)warnings.push('O arquivo não contém progresso; o progresso atual deste dispositivo foi mantido.');
    const nextSettings=hasSettings?normalizeBackupSettings(d.settings,warnings):settings;
@@ -1897,7 +1954,11 @@ try{
          return value;
        };
        const fingerprint=value=>{
-         const copy={...(value||{})};delete copy.updatedAt;delete copy.currentView;
+         // Todas as comparações usam a mesma forma normalizada que será gravada no Firestore.
+         // Assim, valores removidos/convertidos pelo sanitizador não provocam falsos conflitos.
+         let normalized=value||{};
+         try{normalized=restoreNestedArrays(sanitizeForFirestore(normalized))||{};}catch(_){normalized=value||{};}
+         const copy={...(normalized||{})};delete copy.updatedAt;delete copy.currentView;
          if(copy.profile&&typeof copy.profile==='object')copy.profile={name:String(copy.profile.name||'Jogador'),guestNameConfirmed:!!copy.profile.guestNameConfirmed};
          return JSON.stringify(stableValue(copy));
        };
