@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gatosudokuai-pwa-v1.24';
+const CACHE_NAME = 'gatosudokuai-pwa-v1.26';
 const APP_SHELL = [
   './', './index.html', './manifest.webmanifest', './browserconfig.xml',
   './icons/favicon.ico', './icons/favicon-16x16.png', './icons/favicon-32x32.png', './icons/favicon-48x48.png',
