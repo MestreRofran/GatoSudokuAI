@@ -20,7 +20,7 @@
 <link rel="shortcut icon" href="./icons/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
-<title>GatoSudokuAI 1.24</title>
+<title>GatoSudokuAI 1.26</title>
 <style>
 :root{--bg:#f5f4fb;--panel:#fff;--panel2:#f0eef9;--text:#23243a;--muted:#777990;--line:#dfdced;--primary:#7357dc;--primary2:#9c71ed;--primary-soft:#eee9ff;--good:#168b61;--goodbg:#e1f8ed;--bad:#d84557;--badbg:#fff0f0;--gold:#bb7900;--shadow:0 14px 40px rgba(45,35,93,.09);--cell:#fff;--related:#f0edff;--selected:#ded6ff;--given:#38354f;--entry:#6244d5;--radius:22px}
 html[data-theme="dark"]{--bg:#151421;--panel:#211f31;--panel2:#2c293f;--text:#f5f3ff;--muted:#b1aec7;--line:#403b57;--primary:#a892ff;--primary2:#8065ec;--primary-soft:#352b59;--good:#5ee0a8;--goodbg:#1c3b34;--bad:#ff8490;--badbg:#46252e;--gold:#ffd078;--shadow:0 14px 40px rgba(0,0,0,.24);--cell:#252236;--related:#302c48;--selected:#4a3c77;--given:#fff;--entry:#c0b2ff}
@@ -237,7 +237,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 @media(max-width:380px){.daily-calendar-weekdays,.daily-calendar-grid{gap:3px}.daily-day{min-height:43px}.daily-day small{font-size:7px}}
 
 
-/* GatoSudokuAI 1.24: o percentual escolhido controla números tipográficos e ilustrações. */
+/* GatoSudokuAI 1.26: o percentual escolhido controla números tipográficos e ilustrações. */
 .sudoku-board.number-size-30 .sudoku-cell .digit{font-size:clamp(4.5px,calc(16.8vw / var(--n)),10.8px)!important;}
 .sudoku-board.number-size-50 .sudoku-cell .digit{font-size:clamp(7.5px,calc(28vw / var(--n)),18px)!important;}
 .sudoku-board.number-size-65 .sudoku-cell .digit{font-size:clamp(9.75px,calc(36.4vw / var(--n)),23.4px)!important;}
@@ -886,7 +886,7 @@ function renderSettings(){
  <div class="achievement"><div class="medal">🗺️</div><div><strong>Campanha — Reino dos Gatos</strong><small>16 fases em sequência, de tabuleiros pequenos a 9×9 difíceis. Cada vitória libera a próxima fase e dá 1 a 3 estrelas (3 sem dicas, 2 com até 2 dicas). Ao abrir o mapa, seu gatinho percorre o caminho conquistado.</small></div></div>
  <div class="achievement"><div class="medal">🪙</div><div><strong>Pontos e XP</strong><small>Pontos servem para comprar dicas. XP sobe seu nível. Ambos crescem com as casas vazias e a dificuldade, com bônus por não errar, não usar dicas e terminar rápido. Cada nível pede um pouco mais de XP que o anterior.</small></div></div>
  <div class="achievement"><div class="medal">🌍</div><div><strong>Ranking global</strong><small>Na aba Progresso, entre com uma conta para ver os 10 melhores de cada categoria e nível. Só seu nome de jogador, a pontuação e a data e hora são compartilhados.</small></div></div>
- <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.24 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.24</span></div></div>`;
+ <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.26 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.26</span></div></div>`;
  if(settingsCategory==='interface')content+=`<div class="settings-card pwa-settings-card"><h3>📲 Instalação do aplicativo</h3><p>Instale o GatoSudokuAI no dispositivo para abrir em uma janela própria. Depois da primeira carga, o jogo e os arquivos principais ficam disponíveis para uso offline; recursos de conta e ranking dependem de conexão.</p><div class="setting-row"><div><strong id="pwa-install-settings-title">Instalar GatoSudokuAI</strong><small data-pwa-install-status>O navegador mostrará a opção de instalação quando estiver disponível.</small></div><button class="btn btn-soft btn-sm" data-action="install-pwa" data-pwa-install-button>Instalar app</button></div></div>`;
  const pausedGameBanner=game&&game.status==='playing'&&game.paused?`<div class="pause-settings-return"><p>😴 Sua partida está pausada. O cronômetro continua parado enquanto você ajusta as preferências.</p><button class="btn btn-primary btn-sm" data-action="return-paused-game">Voltar à pausa</button></div>`:'';
  return `<div class="section-heading" style="margin-top:8px"><div><div class="eyebrow">Personalização</div><h1>Configurações</h1><p class="muted">Ajuste o jogo ao seu jeito.</p></div></div>${pausedGameBanner}<div class="settings-layout"><aside class="settings-nav">${nav.map(([id,label])=>`<button class="${settingsCategory===id?'active':''}" data-action="settings-category" data-category="${id}">${label}</button>`).join('')}</aside><div class="settings-content">${content}</div></div>`;
@@ -1189,7 +1189,7 @@ function openModal(type,data={}){
   else if(type==='visual-reward'){const gained=(data.styles||[]).filter(i=>progress.unlockedVisuals.includes(Number(i)));title=gained.length===1?'Novo estilo desbloqueado!':'Novos estilos desbloqueados!';body=`<p>Você concluiu uma fase da campanha e ganhou ${gained.length===1?'um novo estilo':'novos estilos'} sem gastar moedas.</p>${gained.map(i=>`<div class="visual-reward-card">${visualPreview(i)}<div><strong>${VISUAL_STYLES[i].name}</strong><small>${VISUAL_STYLES[i].desc}</small></div><button class="btn btn-primary btn-sm" data-action="use-reward-visual" data-visual="${i}">Usar agora</button></div>`).join('')}`;buttons=`<button class="btn btn-outline" data-action="close-modal">Continuar com o estilo atual</button>`}
   else if(type==='cat-completed'){const cat=Math.max(0,Math.min(3,Number(data.cat)||0));title='Missão felina concluída';body=`<img class="cat-mission-art" src="${campaignArtForCat(cat,'care')}" alt="${CAMPAIGN_CAT_NAMES[cat]} sendo bem cuidado no reinado"><p><b>${CAMPAIGN_CAT_NAMES[cat]}</b> já concluiu as 16 fases e agora está no reinado, sendo muito bem cuidado. Sua aparência de campeão foi desbloqueada!</p><div class="cat-mission-note">Você pode escolher este companheiro para rever sua jornada ou selecionar outro gato, que continuará do ponto em que parou.</div>`;buttons=`<button class="btn btn-primary" data-action="close-modal">Entendi</button>`}
  else if(type==='install-pwa'){title='Instalar GatoSudokuAI';const ua=navigator.userAgent||'',ios=/iPad|iPhone|iPod/.test(ua),android=/Android/i.test(ua);body=ios?'<p>No iPhone ou iPad, abra esta página no Safari, toque em <b>Compartilhar</b> e escolha <b>Adicionar à Tela de Início</b>.</p>':android?'<p>No Android, use o botão <b>Instalar app</b> quando aparecer. Se não aparecer, abra o menu do navegador (⋮) e escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</p>':'<p>No computador, procure o ícone de instalação na barra de endereço. Se não estiver disponível, abra o menu do navegador e procure <b>Instalar GatoSudokuAI</b> ou <b>Instalar aplicativo</b>.</p>';body+='<p>Para a instalação funcionar, acesse pelo endereço seguro HTTPS, como o GitHub Pages. Se acabou de publicar, recarregue a página após o primeiro carregamento.</p>';buttons='<button class="btn btn-primary" data-action="close-modal">Entendi</button>'}
- else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.24 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
+ else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.26 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
  $('#modal').innerHTML=`<div class="modal-top"><h2 id="modal-title">${title}</h2><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></div><div class="modal-body">${body}</div><div class="modal-actions">${buttons}</div>`;$('#modal-backdrop').classList.toggle('game-style-modal',type==='board-style'&&currentView==='game');$('#modal-backdrop').classList.remove('hidden');
 }
 function closeModal(){const previousType=modalState&&modalState.type,resumeAfterStyle=!!(modalState&&modalState.resumeGameAfterModal);$('#modal-backdrop').classList.add('hidden');$('#modal-backdrop').classList.remove('game-style-modal');modalState=null;if(resumeAfterStyle&&game&&game.status==='playing'&&game.paused){game.paused=false;game.autoPaused=false;lastTick=Date.now();renderGameOnly();saveState()}if(previousType==='visual-reward'&&Array.isArray(pendingMilestoneNotice)&&pendingMilestoneNotice.length){const awards=pendingMilestoneNotice;pendingMilestoneNotice=null;openModal('milestone-reward',{awards})}}
@@ -1251,8 +1251,41 @@ function renderRanking(){
   const body=rankData.status==='loading'?'<div class="empty-state">Carregando ranking…</div>':rankData.status==='error'?`<div class="empty-state">⚠️ ${esc(rankData.error)}</div>`:rankData.rows.length?rows:'<div class="empty-state"><div class="emoji">🐾</div>Ninguém pontuou nesta categoria ainda. Seja o primeiro!</div>';
   return `<div class="section-heading"><div><div class="eyebrow">Ranking global</div><h2>Os 10 melhores · últimos 6 meses</h2></div><button class="btn btn-soft btn-sm" data-action="rank-refresh">↻ Atualizar</button></div><div class="panel rank-filters"><span class="field-label">Categoria</span>${seg([['normal','🧩 Clássico'],['time','⏱️ Tempo'],['campaign','🗺️ Campanha']],f.mode,'rank-mode','mode')}${camp?'<p class="muted small" style="margin:10px 0 0">Campanha: soma da melhor pontuação de cada fase concluída.</p>':`<span class="field-label" style="margin-top:12px">Tamanho</span>${seg([[4,'4×4'],[6,'6×6'],[9,'9×9']],f.size,'rank-size','size')}<span class="field-label" style="margin-top:12px">Nível</span>${seg([['Fácil','Fácil'],['Médio','Médio'],['Difícil','Difícil']],f.diff,'rank-diff','diff')}<p class="muted small" style="margin:10px 0 0">Vale a melhor pontuação de cada jogador na categoria. São exibidos apenas resultados dos últimos 6 meses.</p>`}</div><div class="panel rank-list">${body}</div>`;
 }
-function exportBackup(){const data={app:'GatoSudokuAI',version:'1.24',createdAt:new Date().toISOString(),settings,progress,profile,game,suspendedMainGame,suspendedDailyGame};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GatoSudokuAI-backup.json';a.click();URL.revokeObjectURL(url);toast('Backup exportado.')}
-function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const d=JSON.parse(reader.result);if(d.app!=='GatoSudokuAI'||!d.settings||!d.progress)throw Error();settings=mergeSettings(d.settings);progress={...freshProgress(),...d.progress};ensureVisualProgressionData();reconcileVisualUnlocks();profile={...profile,...(d.profile||{})};game=d.game||null;suspendedMainGame=d.suspendedMainGame||null;suspendedDailyGame=d.suspendedDailyGame||null;saveState();renderApp();toast('Backup importado com sucesso.')}catch(_){toast('Este arquivo não é um backup válido do GatoSudokuAI.')}};reader.readAsText(file)}
+function exportBackup(){const data={app:'GatoSudokuAI',version:'1.26',createdAt:new Date().toISOString(),settings,progress,profile,game,suspendedMainGame,suspendedDailyGame};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GatoSudokuAI-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Backup exportado. Guarde este arquivo atualizado.')}
+function importBackup(file){
+ if(!file)return;const reader=new FileReader();reader.onload=()=>{
+  try{
+   let raw=JSON.parse(reader.result);if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('invalid');
+   // Compatibilidade com backups antigos que guardavam o estado dentro de state/data ou exportavam o estado local diretamente.
+   let d=raw;for(let i=0;i<3;i++){if(d&&typeof d==='object'&&!Array.isArray(d)){if(d.app==='GatoSudokuAI'||d.settings||d.progress||d.game||d.suspendedMainGame||d.suspendedDailyGame)break;const nested=d.state&&typeof d.state==='object'?d.state:d.data&&typeof d.data==='object'?d.data:d.gatosudokuai_state&&typeof d.gatosudokuai_state==='object'?d.gatosudokuai_state:null;if(!nested)break;d=nested;}}
+   if(d.app&&d.app!=='GatoSudokuAI')throw Error('wrong-app');
+   const hasSettings=!!(d.settings&&typeof d.settings==='object'&&!Array.isArray(d.settings));
+   const hasProgress=!!(d.progress&&typeof d.progress==='object'&&!Array.isArray(d.progress));
+   const hasRecognizableState=hasSettings||hasProgress||!!(d.game&&typeof d.game==='object')||!!(d.suspendedMainGame&&typeof d.suspendedMainGame==='object')||!!(d.suspendedDailyGame&&typeof d.suspendedDailyGame==='object');
+   if(!hasRecognizableState)throw Error('no-state');
+   const warnings=[];const version=String(d.version||raw.version||'');
+   if(!d.app)warnings.push('O arquivo não informa o nome do aplicativo; foi reconhecido pelo formato dos dados.');
+   if(!version||version!=='1.26')warnings.push('O backup é de uma versão antiga ou sem versão identificada.');
+   if(!hasSettings)warnings.push('As configurações não estavam no arquivo; as configurações atuais foram mantidas.');
+   if(!hasProgress)warnings.push('O progresso não estava no arquivo; o progresso atual foi mantido.');
+   const oldProgress=hasProgress?d.progress:{};const defaults=freshProgress();
+   if(hasProgress){for(const k of Object.keys(defaults))if(!Object.prototype.hasOwnProperty.call(oldProgress,k))warnings.push(`O backup não contém o campo de progresso “${k}”; foi aplicado o valor padrão.`);}
+   if(hasSettings){for(const k of Object.keys(DEFAULTS))if(!Object.prototype.hasOwnProperty.call(d.settings,k)){warnings.push(`Falta a configuração “${k}”; foi aplicado o valor padrão.`);}}
+   const nextSettings=hasSettings?mergeSettings(d.settings):settings;
+   const nextProgress=hasProgress?{...freshProgress(),...oldProgress}:progress;
+   const nextProfile=d.profile&&typeof d.profile==='object'&&!Array.isArray(d.profile)?{...profile,...d.profile}:profile;
+   const nextGame=Object.prototype.hasOwnProperty.call(d,'game')?(d.game||null):game;
+   const nextSuspendedMain=Object.prototype.hasOwnProperty.call(d,'suspendedMainGame')?(d.suspendedMainGame||null):suspendedMainGame;
+   const nextSuspendedDaily=Object.prototype.hasOwnProperty.call(d,'suspendedDailyGame')?(d.suspendedDailyGame||null):suspendedDailyGame;
+   // Só altera o estado depois que o arquivo foi validado e preparado.
+   settings=nextSettings;progress=nextProgress;profile=nextProfile;game=nextGame;suspendedMainGame=nextSuspendedMain;suspendedDailyGame=nextSuspendedDaily;
+   ensureVisualProgressionData();reconcileVisualUnlocks();migrateLegacyCampaignProfiles();progress.level=levelInfo(progress.xp).level;
+   if(game&&game.status==='playing'){game.paused=true;game.autoPaused=true;}[suspendedMainGame,suspendedDailyGame].forEach(g=>{if(g&&g.status==='playing'){g.paused=true;g.autoPaused=true;}});
+   saveState({skipCloud:true});renderApp();
+   if(warnings.length){const summary=warnings.slice(0,3).join(' ');toast(`Backup antigo importado com compatibilidade. ${summary} ${warnings.length>3?`Há mais ${warnings.length-3} item(ns) adaptado(s). `:''}Exporte um novo backup para atualizar o formato.`);}else toast('Backup importado com sucesso. Recomendamos salvar um novo backup atualizado.');
+  }catch(err){console.warn('Falha ao importar backup GatoSudokuAI:',err);toast(err&&err.message==='wrong-app'?'Este backup pertence a outro aplicativo.':'Não foi possível reconhecer este backup. Nenhum dado foi alterado. Se for um backup antigo do GatoSudokuAI, envie o arquivo para adaptação.');}
+ };reader.onerror=()=>toast('Não foi possível ler o arquivo de backup.');reader.readAsText(file);
+}
 
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;if(a==='zoom-map-node'&&Date.now()<campaignMapSuppressClickUntil)return;
@@ -1481,12 +1514,31 @@ try{
        // O estado local pode conter propriedades undefined em estruturas opcionais.
        // O Firestore rejeita esses valores com invalid-argument; removê-los antes da gravação
        // mantém os dados válidos sem alterar o estado salvo no aparelho.
+       // Restaura os arrays que foram representados por objetos para atender ao Firestore.
+       // Deve ficar no escopo de syncSnapshot, pois é usada ao baixar um backup remoto.
+       const restoreNestedArrays=value=>{
+         if(Array.isArray(value))return value.map(restoreNestedArrays);
+         if(value&&typeof value==='object'){
+           const keys=Object.keys(value);
+           if(value._gsaNestedArrayV1_===true&&keys.length===2&&Array.isArray(value.value))return restoreNestedArrays(value.value);
+           const out={};for(const [key,item] of Object.entries(value))out[key]=restoreNestedArrays(item);return out;
+         }
+         return value;
+       };
        const sanitizeForFirestore=value=>{
          if(value===undefined||typeof value==='function'||typeof value==='symbol')return undefined;
          if(value===null||typeof value!=='object')return value;
-         if(Array.isArray(value))return value.map(item=>{const cleaned=sanitizeForFirestore(item);if(cleaned===undefined)return null;return Array.isArray(cleaned)?{_gsaNestedArrayV1_:true,value:cleaned}:cleaned;});
-       const restoreNestedArrays=value=>{if(Array.isArray(value))return value.map(restoreNestedArrays);if(value&&typeof value==='object'){const keys=Object.keys(value);if(value._gsaNestedArrayV1_===true&&keys.length===2&&Array.isArray(value.value))return restoreNestedArrays(value.value);const out={};for(const [key,item] of Object.entries(value))out[key]=restoreNestedArrays(item);return out;}return value;};
-         const out={};for(const [key,item] of Object.entries(value)){const cleaned=sanitizeForFirestore(item);if(cleaned!==undefined)out[key]=cleaned;}return out;
+         if(Array.isArray(value))return value.map(item=>{
+           const cleaned=sanitizeForFirestore(item);
+           if(cleaned===undefined)return null;
+           return Array.isArray(cleaned)?{_gsaNestedArrayV1_:true,value:cleaned}:cleaned;
+         });
+         const out={};
+         for(const [key,item] of Object.entries(value)){
+           const cleaned=sanitizeForFirestore(item);
+           if(cleaned!==undefined)out[key]=cleaned;
+         }
+         return out;
        };
        const safeSnapshot=sanitizeForFirestore(localSnapshot);
        const ref=doc(db,'users',u.uid);
@@ -1495,7 +1547,12 @@ try{
          const remoteAt=Number(remote&&remote.updatedAt)||Number(data.cloudSnapshotUpdatedAtMs)||0;
          const localAt=Number(safeSnapshot&&safeSnapshot.updatedAt)||0;
          const storedBackupAt=Number(data.cloudBackupAtMs)||(data.cloudBackupAt&&typeof data.cloudBackupAt.toMillis==='function'?data.cloudBackupAt.toMillis():0);
-         if(remote&&remoteAt>localAt){return{direction:'download',snapshot:restoreNestedArrays(remote),lastBackupAt:storedBackupAt||remoteAt};}
+         // Se este dispositivo não tinha um estado salvo, nunca substituir um backup remoto
+         // por valores padrão só porque os timestamps locais estão ausentes ou empatados.
+         const hasUsableLocal=!!(safeSnapshot&&safeSnapshot.progress&&safeSnapshot.settings&&localAt>0);
+         if(remote&&(!hasUsableLocal||remoteAt>localAt)){
+           return{direction:'download',snapshot:restoreNestedArrays(remote),lastBackupAt:storedBackupAt||remoteAt};
+         }
          const stamp=Math.max(Date.now(),localAt||0),outgoing={...safeSnapshot,updatedAt:stamp};
          tx.set(ref,{cloudSnapshot:outgoing,cloudSnapshotUpdatedAtMs:stamp,cloudBackupAt:serverTimestamp(),cloudBackupAtMs:stamp,updatedAt:serverTimestamp()},{merge:true});
          return{direction:'upload',snapshot:outgoing,lastBackupAt:stamp};
