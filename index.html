@@ -20,7 +20,7 @@
 <link rel="shortcut icon" href="./icons/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
-<title>GatoSudokuAI 1.17</title>
+<title>GatoSudokuAI 1.18</title>
 <style>
 :root{--bg:#f5f4fb;--panel:#fff;--panel2:#f0eef9;--text:#23243a;--muted:#777990;--line:#dfdced;--primary:#7357dc;--primary2:#9c71ed;--primary-soft:#eee9ff;--good:#168b61;--goodbg:#e1f8ed;--bad:#d84557;--badbg:#fff0f0;--gold:#bb7900;--shadow:0 14px 40px rgba(45,35,93,.09);--cell:#fff;--related:#f0edff;--selected:#ded6ff;--given:#38354f;--entry:#6244d5;--radius:22px}
 html[data-theme="dark"]{--bg:#151421;--panel:#211f31;--panel2:#2c293f;--text:#f5f3ff;--muted:#b1aec7;--line:#403b57;--primary:#a892ff;--primary2:#8065ec;--primary-soft:#352b59;--good:#5ee0a8;--goodbg:#1c3b34;--bad:#ff8490;--badbg:#46252e;--gold:#ffd078;--shadow:0 14px 40px rgba(0,0,0,.24);--cell:#252236;--related:#302c48;--selected:#4a3c77;--given:#fff;--entry:#c0b2ff}
@@ -141,7 +141,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 .bs-locked-note{grid-column:1/-1;font-size:10px;color:var(--muted);padding:0 12px 9px;margin:0;line-height:1.35}
 @media(max-width:430px){.bs-option-card .bs-option{gap:7px;padding:9px 9px}.bs-ico{font-size:18px}.bs-option-copy .bs-name{font-size:12px}.bs-option-copy small{font-size:9px}.bs-preview-mark{padding:5px 6px;font-size:9px}.bs-option-end{padding:5px 6px}.bs-price-action,.bs-use-action{padding:8px 7px;font-size:10px}.bs-preview{min-height:88px}}
 
-/* GatoSudokuAI 1.17: prévias de números sempre sobre branco, para manter a arte consistente. */
+/* GatoSudokuAI 1.18: prévias de números sempre sobre branco, para manter a arte consistente. */
 .bs-preview,.bs-detail-panel .bs-preview,.visual-preview-modal-art,
 .sprite-preview,.old-cats-preview,.visual-demo,
 .visual-preview-modal-art .sprite-preview,.visual-preview-modal-art .visual-demo{
@@ -185,7 +185,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 .game-award-line .award-reward{font-size:11px;font-weight:850;color:var(--good,#23864a);white-space:nowrap;}
 
 
-/* GatoSudokuAI 1.17: equalize the visual weight of colored and black digits. */
+/* GatoSudokuAI 1.18: equalize the visual weight of colored and black digits. */
 .visual-1 .sudoku-cell .digit,.visual-2 .sudoku-cell .digit{font-size:clamp(15px,calc(56vw / var(--n)),36px);font-weight:900;line-height:1;display:inline-block}
 .visual-choice .visual-demo{font-size:clamp(34px,9vw,40px);gap:9px;letter-spacing:-2px}
 .bs-preview .visual-demo{font-size:64px;gap:10px;letter-spacing:-2px}
@@ -198,7 +198,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 .cat-arrival-story{max-width:520px;line-height:1.65}
 @media(max-width:430px){.visual-1 .sudoku-cell .digit,.visual-2 .sudoku-cell .digit{font-size:clamp(15px,calc(57vw / var(--n)),34px)}.bs-preview .visual-demo{font-size:54px}.cat-arrival-art{max-height:210px}}
 
-/* GatoSudokuAI 1.17: números tipográficos respeitam o mesmo percentual da célula que as ilustrações. */
+/* GatoSudokuAI 1.18: números tipográficos respeitam o mesmo percentual da célula que as ilustrações. */
 .visual-1 .sudoku-cell .digit,.visual-2 .sudoku-cell .digit{
   width:var(--number-art-size,90%);height:var(--number-art-size,90%);box-sizing:border-box;
   display:flex;align-items:center;justify-content:center;flex:none;
@@ -246,7 +246,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 .old-cats-preview .old-cat-digit{display:block!important;flex:0 0 clamp(28px,20%,65px)!important;width:clamp(28px,20%,65px)!important;height:auto!important;aspect-ratio:1/1;max-height:90%;background-image:var(--cats-sprite)!important;background-size:300% 300%!important;background-repeat:no-repeat!important;background-position:var(--cat-x,0%) var(--cat-y,0%)!important;}
 .visual-choice .old-cats-preview{height:56px;min-height:56px;}
 
-/* GatoSudokuAI 1.17: números padrão acompanham o tema, exceto no tabuleiro Papel. */
+/* GatoSudokuAI 1.18: números padrão acompanham o tema, exceto no tabuleiro Papel. */
 .sudoku-board{container-type:inline-size;}
 .sudoku-board.visual-2 .sudoku-cell .digit{color:var(--given)!important;text-shadow:none!important;}
 .sudoku-board.layout-3.visual-2 .sudoku-cell .digit{color:#111!important;text-shadow:none!important;}
@@ -259,7 +259,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 .daily-day.next-reward .daily-day-number{color:#713f12!important;}
 .daily-calendar-dot.yellow{background:#fef08a;border-color:#eab308;}
 
-/* GatoSudokuAI 1.17: estabiliza as prévias e separa pré-visualizar de aplicar o tabuleiro. */
+/* GatoSudokuAI 1.18: estabiliza as prévias e separa pré-visualizar de aplicar o tabuleiro. */
 #bs-preview.bs-preview{height:104px;min-height:104px;max-height:104px;width:100%;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;flex:0 0 104px}
 #bs-preview.bs-preview>.visual-demo,#bs-preview.bs-preview>.sprite-preview{width:100%;height:100%;min-height:0;max-height:none;box-sizing:border-box;flex:1 1 auto;margin:0}
 #bs-preview.bs-preview>.sprite-preview img{height:90%;max-height:90%;width:30%;object-fit:contain}
@@ -858,7 +858,7 @@ function renderSettings(){
  <div class="achievement"><div class="medal">🗺️</div><div><strong>Campanha — Reino dos Gatos</strong><small>16 fases em sequência, de tabuleiros pequenos a 9×9 difíceis. Cada vitória libera a próxima fase e dá 1 a 3 estrelas (3 sem dicas, 2 com até 2 dicas). Ao abrir o mapa, seu gatinho percorre o caminho conquistado.</small></div></div>
  <div class="achievement"><div class="medal">🪙</div><div><strong>Pontos e XP</strong><small>Pontos servem para comprar dicas. XP sobe seu nível. Ambos crescem com as casas vazias e a dificuldade, com bônus por não errar, não usar dicas e terminar rápido. Cada nível pede um pouco mais de XP que o anterior.</small></div></div>
  <div class="achievement"><div class="medal">🌍</div><div><strong>Ranking global</strong><small>Na aba Progresso, entre com uma conta para ver os 10 melhores de cada categoria e nível. Só seu nome de jogador, a pontuação e a data e hora são compartilhados.</small></div></div>
- <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.17 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.17</span></div></div>`;
+ <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.17 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.18</span></div></div>`;
  if(settingsCategory==='interface')content+=`<div class="settings-card pwa-settings-card"><h3>📲 Instalação do aplicativo</h3><p>Instale o GatoSudokuAI no dispositivo para abrir em uma janela própria. Depois da primeira carga, o jogo e os arquivos principais ficam disponíveis para uso offline; recursos de conta e ranking dependem de conexão.</p><div class="setting-row"><div><strong id="pwa-install-settings-title">Instalar GatoSudokuAI</strong><small data-pwa-install-status>O navegador mostrará a opção de instalação quando estiver disponível.</small></div><button class="btn btn-soft btn-sm" data-action="install-pwa" data-pwa-install-button>Instalar app</button></div></div>`;
  const pausedGameBanner=game&&game.status==='playing'&&game.paused?`<div class="pause-settings-return"><p>😴 Sua partida está pausada. O cronômetro continua parado enquanto você ajusta as preferências.</p><button class="btn btn-primary btn-sm" data-action="return-paused-game">Voltar à pausa</button></div>`:'';
  return `<div class="section-heading" style="margin-top:8px"><div><div class="eyebrow">Personalização</div><h1>Configurações</h1><p class="muted">Ajuste o jogo ao seu jeito.</p></div></div>${pausedGameBanner}<div class="settings-layout"><aside class="settings-nav">${nav.map(([id,label])=>`<button class="${settingsCategory===id?'active':''}" data-action="settings-category" data-category="${id}">${label}</button>`).join('')}</aside><div class="settings-content">${content}</div></div>`;
@@ -1219,9 +1219,9 @@ function renderRanking(){
   const medals=['🥇','🥈','🥉'];
   const rows=rankData.rows.map((r,i)=>`<div class="rank-row ${r.uid===profile.uid?'me':''}"><span class="rank-pos">${medals[i]||i+1}</span><div class="rank-name"><strong>${esc(r.name)}</strong><small>${r.at?new Date(r.at).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):''}</small></div><b>${numberFmt(r.score)}</b></div>`).join('');
   const body=rankData.status==='loading'?'<div class="empty-state">Carregando ranking…</div>':rankData.status==='error'?`<div class="empty-state">⚠️ ${esc(rankData.error)}</div>`:rankData.rows.length?rows:'<div class="empty-state"><div class="emoji">🐾</div>Ninguém pontuou nesta categoria ainda. Seja o primeiro!</div>';
-  return `<div class="section-heading"><div><div class="eyebrow">Ranking global</div><h2>Os 10 melhores</h2></div><button class="btn btn-soft btn-sm" data-action="rank-refresh">↻ Atualizar</button></div><div class="panel rank-filters"><span class="field-label">Categoria</span>${seg([['normal','🧩 Clássico'],['time','⏱️ Tempo'],['campaign','🗺️ Campanha']],f.mode,'rank-mode','mode')}${camp?'<p class="muted small" style="margin:10px 0 0">Campanha: soma da melhor pontuação de cada fase concluída.</p>':`<span class="field-label" style="margin-top:12px">Tamanho</span>${seg([[4,'4×4'],[6,'6×6'],[9,'9×9']],f.size,'rank-size','size')}<span class="field-label" style="margin-top:12px">Nível</span>${seg([['Fácil','Fácil'],['Médio','Médio'],['Difícil','Difícil']],f.diff,'rank-diff','diff')}<p class="muted small" style="margin:10px 0 0">Vale a melhor pontuação de cada jogador na categoria.</p>`}</div><div class="panel rank-list">${body}</div>`;
+  return `<div class="section-heading"><div><div class="eyebrow">Ranking global</div><h2>Os 10 melhores · últimos 6 meses</h2></div><button class="btn btn-soft btn-sm" data-action="rank-refresh">↻ Atualizar</button></div><div class="panel rank-filters"><span class="field-label">Categoria</span>${seg([['normal','🧩 Clássico'],['time','⏱️ Tempo'],['campaign','🗺️ Campanha']],f.mode,'rank-mode','mode')}${camp?'<p class="muted small" style="margin:10px 0 0">Campanha: soma da melhor pontuação de cada fase concluída.</p>':`<span class="field-label" style="margin-top:12px">Tamanho</span>${seg([[4,'4×4'],[6,'6×6'],[9,'9×9']],f.size,'rank-size','size')}<span class="field-label" style="margin-top:12px">Nível</span>${seg([['Fácil','Fácil'],['Médio','Médio'],['Difícil','Difícil']],f.diff,'rank-diff','diff')}<p class="muted small" style="margin:10px 0 0">Vale a melhor pontuação de cada jogador na categoria. São exibidos apenas resultados dos últimos 6 meses.</p>`}</div><div class="panel rank-list">${body}</div>`;
 }
-function exportBackup(){const data={app:'GatoSudokuAI',version:'1.17',createdAt:new Date().toISOString(),settings,progress,profile,game,suspendedMainGame,suspendedDailyGame};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GatoSudokuAI-backup.json';a.click();URL.revokeObjectURL(url);toast('Backup exportado.')}
+function exportBackup(){const data={app:'GatoSudokuAI',version:'1.18',createdAt:new Date().toISOString(),settings,progress,profile,game,suspendedMainGame,suspendedDailyGame};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GatoSudokuAI-backup.json';a.click();URL.revokeObjectURL(url);toast('Backup exportado.')}
 function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const d=JSON.parse(reader.result);if(d.app!=='GatoSudokuAI'||!d.settings||!d.progress)throw Error();settings=mergeSettings(d.settings);progress={...freshProgress(),...d.progress};ensureVisualProgressionData();reconcileVisualUnlocks();profile={...profile,...(d.profile||{})};game=d.game||null;suspendedMainGame=d.suspendedMainGame||null;suspendedDailyGame=d.suspendedDailyGame||null;saveState();renderApp();toast('Backup importado com sucesso.')}catch(_){toast('Este arquivo não é um backup válido do GatoSudokuAI.')}};reader.readAsText(file)}
 
 document.addEventListener('click',e=>{
@@ -1394,7 +1394,7 @@ loadState();migrateLegacyCampaignProfiles();ensureVisualProgressionData();const 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {getAuth,onAuthStateChanged,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,doc,getDoc,setDoc,serverTimestamp,collection,query,where,orderBy,limit,getDocs,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getFirestore,doc,getDoc,setDoc,serverTimestamp,Timestamp,collection,query,where,orderBy,limit,getDocs,runTransaction} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 const firebaseConfig={
   apiKey:"AIzaSyCYcSnmCBKVS4k6Breu8lmSK5ZktNWNci4",
   authDomain:"gatosudokuai.firebaseapp.com",
@@ -1458,8 +1458,13 @@ try{
       return true;
     },
     async fetchRanking(board){
-      const snap=await getDocs(query(collection(db,'leaderboard'),where('board','==',board),orderBy('score','desc'),limit(10)));
-      return snap.docs.map(d=>{const x=d.data();return{uid:x.uid,name:x.name,score:x.score,at:x.completedAt&&x.completedAt.toMillis?x.completedAt.toMillis():0}});
+      // Exibe somente resultados concluídos nos últimos seis meses. Busca por data
+      // e ordena as pontuações localmente para não limitar o ranking aos registros antigos.
+      const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-6);
+      const snap=await getDocs(query(collection(db,'leaderboard'),where('board','==',board),where('completedAt','>=',Timestamp.fromDate(cutoff)),orderBy('completedAt','desc')));
+      const rows=snap.docs.map(d=>{const x=d.data();return{uid:x.uid,name:x.name,score:Number(x.score)||0,time:Number(x.time)||0,at:x.completedAt&&x.completedAt.toMillis?x.completedAt.toMillis():0}});
+      rows.sort((a,b)=>b.score-a.score||a.time-b.time||b.at-a.at);
+      return rows.slice(0,10);
     }
   };
   onAuthStateChanged(auth,async user=>{
