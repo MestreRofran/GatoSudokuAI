@@ -20,7 +20,7 @@
 <link rel="shortcut icon" href="./icons/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
-<title>GatoSudokuAI 1.26</title>
+<title>GatoSudokuAI 1.28</title>
 <style>
 :root{--bg:#f5f4fb;--panel:#fff;--panel2:#f0eef9;--text:#23243a;--muted:#777990;--line:#dfdced;--primary:#7357dc;--primary2:#9c71ed;--primary-soft:#eee9ff;--good:#168b61;--goodbg:#e1f8ed;--bad:#d84557;--badbg:#fff0f0;--gold:#bb7900;--shadow:0 14px 40px rgba(45,35,93,.09);--cell:#fff;--related:#f0edff;--selected:#ded6ff;--given:#38354f;--entry:#6244d5;--radius:22px}
 html[data-theme="dark"]{--bg:#151421;--panel:#211f31;--panel2:#2c293f;--text:#f5f3ff;--muted:#b1aec7;--line:#403b57;--primary:#a892ff;--primary2:#8065ec;--primary-soft:#352b59;--good:#5ee0a8;--goodbg:#1c3b34;--bad:#ff8490;--badbg:#46252e;--gold:#ffd078;--shadow:0 14px 40px rgba(0,0,0,.24);--cell:#252236;--related:#302c48;--selected:#4a3c77;--given:#fff;--entry:#c0b2ff}
@@ -237,7 +237,7 @@ html[data-theme="dark"] .visual-6 .cell-number-art{filter:drop-shadow(0 0 3px #f
 @media(max-width:380px){.daily-calendar-weekdays,.daily-calendar-grid{gap:3px}.daily-day{min-height:43px}.daily-day small{font-size:7px}}
 
 
-/* GatoSudokuAI 1.26: o percentual escolhido controla números tipográficos e ilustrações. */
+/* GatoSudokuAI 1.28: o percentual escolhido controla números tipográficos e ilustrações. */
 .sudoku-board.number-size-30 .sudoku-cell .digit{font-size:clamp(4.5px,calc(16.8vw / var(--n)),10.8px)!important;}
 .sudoku-board.number-size-50 .sudoku-cell .digit{font-size:clamp(7.5px,calc(28vw / var(--n)),18px)!important;}
 .sudoku-board.number-size-65 .sudoku-cell .digit{font-size:clamp(9.75px,calc(36.4vw / var(--n)),23.4px)!important;}
@@ -394,6 +394,7 @@ let versionTapCount=0,versionTapLastAt=0;
 let localStateUpdatedAt=0, localStateExists=false;
 let cloudReadyUid='', cloudLastBackupAt=0, cloudSyncStatus='idle', cloudSyncError='';
 let cloudSaveTimer=null, cloudSyncBusy=false, cloudDeleteBusy=false, cloudSavePending=false, cloudForcePending=false, lastCloudWriteAt=0;
+let pendingCloudConflict=null;
 let campaignMapDrag=null, campaignMapSuppressClickUntil=0;
 let currentView='home';
 let toastTimer=null, timerTicker=null, lastTick=Date.now();
@@ -427,20 +428,64 @@ function loadState(){
 function saveState(options={}){
   persistActiveCampaignProgress();
   if(!options.preserveTimestamp)localStateUpdatedAt=Math.max(Date.now(),(Number(localStateUpdatedAt)||0)+1);
-  try{if(game)game.savedAt=Date.now();localStorage.setItem('gatosudokuai_state',JSON.stringify({settings,progress,profile,game,suspendedMainGame,suspendedDailyGame,currentView,updatedAt:localStateUpdatedAt}));localStateExists=true;}catch(e){toast('Não foi possível salvar o progresso neste dispositivo.');}
+  let saved=false;
+  try{
+    if(game)game.savedAt=Date.now();
+    const serialized=JSON.stringify({settings,progress,profile,game,suspendedMainGame,suspendedDailyGame,currentView,updatedAt:localStateUpdatedAt});
+    localStorage.setItem('gatosudokuai_state',serialized);localStateExists=true;saved=true;
+  }catch(e){console.warn('Salvamento local:',e);toast('Não foi possível salvar o progresso neste dispositivo. Verifique o espaço disponível do navegador.');}
   if(!options.skipCloud)queueCloudSave(!!options.forceCloud);
+  return saved;
 }
-function syncSnapshotFromLocal(){return {updatedAt:Number(localStateUpdatedAt)||0,settings,progress,game,suspendedMainGame,suspendedDailyGame,currentView};}
+function syncSnapshotFromLocal(){return {updatedAt:Number(localStateUpdatedAt)||0,profile:{name:String(profile?.name||'Jogador'),provider:String(profile?.provider||'anonymous'),uid:String(profile?.uid||''),email:String(profile?.email||''),guestNameConfirmed:!!profile?.guestNameConfirmed},settings,progress,game,suspendedMainGame,suspendedDailyGame,currentView};}
+function cloudContentFingerprint(snapshot){const copy={...(snapshot||{})};delete copy.updatedAt;if(copy.profile&&typeof copy.profile==='object'){copy.profile={...copy.profile};delete copy.profile.lastBackupAt;}return JSON.stringify(copy); }
 function formatCloudTime(value){const ms=Number(value)||0;return ms?new Date(ms).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não há backup na nuvem.';}
-function cloudStatusText(){if(cloudSyncStatus==='syncing')return 'Sincronizando…';if(cloudSyncStatus==='error')return `Falha na sincronização: ${cloudErrorText(cloudSyncError)}. Os dados locais continuam salvos.`;if(isLoggedIn()&&localStorage.getItem('gatosudokuai_cloud_cleared_uid')===profile.uid)return 'Sincronização automática pausada. Toque em ↻ para sincronizar novamente.';if(cloudLastBackupAt)return `Último backup: ${formatCloudTime(cloudLastBackupAt)}`;return 'O primeiro backup será feito automaticamente.';}
-function cloudErrorText(raw){const code=String(raw?.code||raw||'').toLowerCase();if(code.includes('permission-denied')||code.includes('insufficient permissions'))return 'permissão negada pelo Firestore; confira as regras de users';if(code.includes('unavailable')||code.includes('network-request-failed'))return 'serviço indisponível ou falha de rede';if(code.includes('deadline-exceeded'))return 'a operação excedeu o tempo limite';if(code.includes('resource-exhausted'))return 'limite de recursos/tamanho do documento excedido';if(code.includes('failed-precondition'))return 'pré-condição do Firestore não atendida';if(code.includes('unauthenticated')||code.includes('not-authenticated'))return 'sessão não autenticada';if(code.includes('aborted'))return 'operação concorrente interrompida; tente novamente';return String(raw?.message||raw||'erro desconhecido').slice(0,180)}
+function cloudStatusText(){
+ if(cloudSyncStatus==='syncing')return 'Sincronização em andamento…';
+ if(cloudSyncStatus==='conflict')return 'Há duas versões sem data confiável. Escolha qual preservar.';
+ if(cloudSyncStatus==='warning')return cloudSyncError||'Dados recebidos, mas os metadados do backup precisam ser atualizados.';
+ if(cloudSyncStatus==='error')return `Sincronização não confirmada: ${cloudErrorText(cloudSyncError)}. Os dados locais permanecem neste dispositivo.`;
+ if(isLoggedIn()&&localStorage.getItem('gatosudokuai_cloud_cleared_uid')===profile.uid)return 'Sincronização pausada após apagar a cópia da nuvem. Toque em ↻ para enviar novamente.';
+ if(cloudSyncStatus==='ok'&&cloudLastBackupAt)return `Sincronização confirmada em ${formatCloudTime(cloudLastBackupAt)}.`;
+ if(cloudLastBackupAt)return `Última sincronização registrada neste dispositivo: ${formatCloudTime(cloudLastBackupAt)}. A conexão atual ainda precisa ser confirmada.`;
+ return 'Nenhum backup remoto foi confirmado nesta sessão.';
+}
+function cloudErrorText(raw){
+ const full=String(raw?.message||raw||'erro desconhecido');
+ const code=String(raw?.code||raw||'').toLowerCase();
+ if(code.includes('permission-denied')||code.includes('insufficient permissions'))return 'o Firestore negou o acesso; publique regras que permitam ao dono acessar /users/{uid} e a leitura/gravação autorizada de /leaderboard';
+ if(code.includes('invalid-argument'))return 'o Firestore recusou algum dado do backup (por exemplo, array aninhado ou nome de campo reservado); confira a mensagem técnica abaixo';
+ if(code.includes('resource-exhausted')||code.includes('document-too-large')||code.includes('snapshot-too-large'))return 'o backup excede o tamanho permitido pelo Firestore; exporte o backup local e revise o conteúdo';
+ if(code.includes('unavailable')||code.includes('network-request-failed'))return 'serviço indisponível ou falha de rede';
+ if(code.includes('deadline-exceeded'))return 'a operação excedeu o tempo limite';
+ if(code.includes('failed-precondition'))return 'pré-condição do Firestore não atendida';
+ if(code.includes('unauthenticated')||code.includes('not-authenticated'))return 'sessão não autenticada';
+ if(code.includes('cloud-snapshot-invalid'))return 'a cópia da nuvem está incompleta ou em formato inválido; a cópia local não foi enviada por cima dela automaticamente';
+ if(code.includes('account-uid-mismatch'))return 'a conta autenticada não corresponde ao perfil carregado; a sincronização foi interrompida para evitar gravar no usuário errado';
+ if(code.includes('aborted'))return 'operação concorrente interrompida; tente novamente';
+ return full.slice(0,260);
+}
+function hasMeaningfulLocalData(){
+ const p=progress||{};
+ return !!(game||suspendedMainGame||suspendedDailyGame||Number(p.xp)||Number(p.games)||Number(p.wins)||Number(p.totalScore)||Number(p.points)!==120||Object.keys(p.campaignStars||{}).length||Object.keys(p.campaignByCat||{}).length||Object.keys(p.dailyChallenges||{}).length||(p.achievements||[]).length||Object.keys(p.bestTime||{}).length||JSON.stringify(settings)!==JSON.stringify(DEFAULTS));
+}
+function backupStateLooksValid(snapshot){if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot)||!snapshot.settings||typeof snapshot.settings!=='object'||Array.isArray(snapshot.settings)||!snapshot.progress||typeof snapshot.progress!=='object'||Array.isArray(snapshot.progress))return false;if(snapshot.profile!=null&&(typeof snapshot.profile!=='object'||Array.isArray(snapshot.profile)))return false;for(const k of ['game','suspendedMainGame','suspendedDailyGame'])if(snapshot[k]!=null&&(typeof snapshot[k]!=='object'||Array.isArray(snapshot[k])))return false;return true;}
 function applyCloudSnapshot(snapshot){
-  if(!snapshot||!snapshot.progress||!snapshot.settings)return false;
-  settings=mergeSettings(snapshot.settings);progress={...freshProgress(),...snapshot.progress};ensureVisualProgressionData();reconcileVisualUnlocks();progress.level=levelInfo(progress.xp).level;
-  game=snapshot.game||null;suspendedMainGame=snapshot.suspendedMainGame||null;suspendedDailyGame=snapshot.suspendedDailyGame||null;
-  if(game&&game.status==='playing'){game.paused=true;game.autoPaused=true;}
-  if(snapshot.currentView&&['home','game','campaign','stats','settings'].includes(snapshot.currentView))currentView=snapshot.currentView==='game'&&game?'game':'home';
-  localStateUpdatedAt=Number(snapshot.updatedAt)||Date.now();saveState({skipCloud:true,preserveTimestamp:true});return true;
+  if(!backupStateLooksValid(snapshot))return false;
+  const previous={settings,progress,profile,game,suspendedMainGame,suspendedDailyGame,currentView,localStateUpdatedAt,localStateExists};
+  try{
+    settings=mergeSettings(snapshot.settings);progress={...freshProgress(),...snapshot.progress};ensureVisualProgressionData();reconcileVisualUnlocks();progress.level=levelInfo(progress.xp).level;
+    if(snapshot.profile&&typeof snapshot.profile==='object'&&!Array.isArray(snapshot.profile)){const safeName=String(snapshot.profile.name||'').replace(/\s+/g,' ').trim().slice(0,30);if(safeName.length>=2)profile={...profile,name:safeName,guestNameConfirmed:!!snapshot.profile.guestNameConfirmed};}
+    game=snapshot.game||null;suspendedMainGame=snapshot.suspendedMainGame||null;suspendedDailyGame=snapshot.suspendedDailyGame||null;
+    if(game&&game.status==='playing'){game.paused=true;game.autoPaused=true;}
+    if(snapshot.currentView&&['home','game','campaign','stats','settings'].includes(snapshot.currentView))currentView=snapshot.currentView==='game'&&game?'game':'home';
+    localStateUpdatedAt=Number(snapshot.updatedAt)||Date.now();
+    if(!saveState({skipCloud:true,preserveTimestamp:true}))throw new Error('local-save-failed');
+    renderApp();return true;
+  }catch(err){
+    settings=previous.settings;progress=previous.progress;profile=previous.profile;game=previous.game;suspendedMainGame=previous.suspendedMainGame;suspendedDailyGame=previous.suspendedDailyGame;currentView=previous.currentView;localStateUpdatedAt=previous.localStateUpdatedAt;localStateExists=previous.localStateExists;
+    console.warn('Não foi possível aplicar o backup remoto localmente:',err);return false;
+  }
 }
 function queueCloudSave(force=false){
   if(!isLoggedIn()||!cloudReadyUid||cloudReadyUid!==profile.uid||!window.GatoSudokuAuth?.syncSnapshot)return;
@@ -455,31 +500,85 @@ async function runQueuedCloudSync(){
   cloudSavePending=false;cloudForcePending=false;await syncCloudNow({quiet:true,queued:true});
 }
 async function syncCloudNow(options={}){
-  if(!isLoggedIn()||!window.GatoSudokuAuth?.syncSnapshot){if(!options.quiet)toast('Conecte-se à sua conta para sincronizar a nuvem.');return false;}
-  if(cloudSyncBusy){if(!options.quiet)toast('A sincronização já está em andamento.');return false;}
-  const uid=profile.uid,initialSnapshot=syncSnapshotFromLocal(),initialSnapshotKey=JSON.stringify(initialSnapshot);cloudSyncBusy=true;cloudSyncStatus='syncing';cloudSyncError='';refreshAccountUI();
-  try{
-    const result=await window.GatoSudokuAuth.syncSnapshot(initialSnapshot);
-    if(profile.uid!==uid)return false;
-    lastCloudWriteAt=Date.now();
-    if(result.direction==='download'){
-      // Se houve atividade local enquanto a nuvem respondia, preservar essas jogadas e enviar o estado mais recente em seguida.
-      const changedDuringSync=JSON.stringify(syncSnapshotFromLocal())!==initialSnapshotKey;
-      if(changedDuringSync){cloudSavePending=true;cloudForcePending=true;if(!options.quiet)toast('Sua atividade mais recente foi preservada; sincronizando novamente…');}
-      else{applyCloudSnapshot(result.snapshot);if(!options.quiet)toast('Progresso mais recente recebido da nuvem.');}
-    }else{
-      localStateUpdatedAt=Number(result.snapshot?.updatedAt)||localStateUpdatedAt||Date.now();
-      saveState({skipCloud:true,preserveTimestamp:true});
-      if(!options.quiet)toast('Progresso enviado e sincronizado com a nuvem.');
-    }
-    cloudLastBackupAt=Number(result.lastBackupAt)||Date.now();profile.lastBackupAt=cloudLastBackupAt;profile.email=profile.email||window.GatoSudokuAuth.user?.email||'';if(localStorage.getItem('gatosudokuai_cloud_cleared_uid')===uid)localStorage.removeItem('gatosudokuai_cloud_cleared_uid');
-    saveState({skipCloud:true,preserveTimestamp:true});cloudSyncStatus='ok';cloudSyncError='';cloudReadyUid=uid;
-    refreshAccountUI();return true;
-  }catch(err){console.warn('Sincronização:',err);const awaitingManualResync=localStorage.getItem('gatosudokuai_cloud_cleared_uid')===uid;cloudReadyUid=awaitingManualResync?'':uid;cloudSyncStatus='error';cloudSyncError=err?.message?`${err?.code||'erro'}: ${err.message}`:(err?.code||'offline');if(!options.quiet)toast(`Falha na sincronização: ${cloudErrorText(err)}.`);refreshAccountUI();return false;}
-  finally{
-    cloudSyncBusy=false;
-    if(cloudSavePending&&cloudReadyUid===profile.uid&&!cloudSaveTimer)cloudSaveTimer=setTimeout(runQueuedCloudSync,cloudForcePending?120:900);
-  }
+ const bridge=window.GatoSudokuAuth;
+ if(!isLoggedIn()||!bridge?.syncSnapshot){
+   cloudSyncStatus='error';cloudSyncError=bridge?'not-authenticated':'Firebase não inicializado ou SDK indisponível';
+   if(!options.quiet)toast('Conecte-se à conta e confira se o Firebase carregou antes de sincronizar.');refreshAccountUI();return false;
+ }
+ const authUid=bridge.user?.uid;
+ if(!authUid||profile.uid!==authUid){
+   cloudSyncStatus='error';cloudSyncError='account-uid-mismatch: perfil e usuário autenticado são diferentes';
+   if(!options.quiet)toast('A conta não corresponde ao perfil carregado. Saia e entre novamente antes de sincronizar.');refreshAccountUI();return false;
+ }
+ if(cloudSyncBusy){if(!options.quiet)toast('A sincronização já está em andamento.');return false;}
+ const uid=profile.uid,initialSnapshot=syncSnapshotFromLocal(),initialSnapshotKey=JSON.stringify(initialSnapshot);
+ cloudSyncBusy=true;cloudSyncStatus='syncing';cloudSyncError='';refreshAccountUI();
+ try{
+   const result=await bridge.syncSnapshot(initialSnapshot,{forceUpload:!!options.forceUpload,localStateExists,hasMeaningfulLocal:hasMeaningfulLocalData()});
+   if(profile.uid!==uid||bridge.user?.uid!==uid)return false;
+   lastCloudWriteAt=Date.now();
+   if(result?.direction==='conflict'){
+     pendingCloudConflict={uid,localSnapshot:initialSnapshot,remoteSnapshot:result.snapshot,remoteAt:Number(result.remoteAt)||0,lastBackupAt:Number(result.lastBackupAt)||0,reason:result.reason||'timestamps-missing'};
+     cloudSavePending=false;cloudForcePending=false;cloudReadyUid='';cloudSyncStatus='conflict';cloudSyncError='Há dados locais e remotos sem uma data confiável para decidir qual é o mais recente.';
+     openModal('cloud-conflict');refreshAccountUI();return false;
+   }
+   if(result?.direction==='download'){
+     if(!backupStateLooksValid(result.snapshot))throw Object.assign(new Error('A cópia remota não contém configurações e progresso válidos.'),{code:'cloud-snapshot-invalid'});
+     const changedDuringSync=JSON.stringify(syncSnapshotFromLocal())!==initialSnapshotKey;
+     if(changedDuringSync){cloudSavePending=true;cloudForcePending=true;cloudSyncStatus='syncing';if(!options.quiet)toast('Sua atividade local mudou durante a leitura; ela foi preservada e uma nova sincronização será feita.');refreshAccountUI();return false;}
+     if(!applyCloudSnapshot(result.snapshot))throw Object.assign(new Error('A cópia remota foi recebida, mas não foi possível persistir o estado no dispositivo.'),{code:'local-save-failed'});
+     cloudLastBackupAt=Number(result.lastBackupAt)||Number(result.remoteAt)||0;profile.lastBackupAt=cloudLastBackupAt;
+     if(!cloudLastBackupAt){
+       cloudSyncStatus='warning';cloudSyncError='Os dados foram recebidos da nuvem, mas o backup não tinha data de gravação. O aplicativo tentará atualizar os metadados.';
+       cloudReadyUid=uid;cloudSavePending=true;cloudForcePending=true;
+       if(!options.quiet)toast('Progresso recebido, mas sem data de backup. Vou tentar registrar um backup atualizado.');refreshAccountUI();return false;
+     }
+     if(!options.quiet)toast('Progresso remoto recebido e salvo neste dispositivo.');
+   }else if(result?.direction==='upload'){
+     if(!backupStateLooksValid(result.snapshot))throw Object.assign(new Error('A gravação não devolveu um estado completo para conferência.'),{code:'cloud-snapshot-invalid'});
+     localStateUpdatedAt=Number(result.snapshot.updatedAt)||localStateUpdatedAt||Date.now();
+     if(!saveState({skipCloud:true,preserveTimestamp:true}))throw Object.assign(new Error('A nuvem recebeu os dados, mas o dispositivo não conseguiu confirmar o salvamento local.'),{code:'local-save-failed'});
+     cloudLastBackupAt=Number(result.lastBackupAt)||0;profile.lastBackupAt=cloudLastBackupAt;
+     if(!cloudLastBackupAt)throw Object.assign(new Error('A gravação não retornou uma data confirmada.'),{code:'cloud-snapshot-invalid'});
+     if(!options.quiet)toast('Gravação no Firebase confirmada.');
+   }else if(result?.direction==='unchanged'){
+     cloudLastBackupAt=Number(result.lastBackupAt)||Number(result.remoteAt)||cloudLastBackupAt||0;profile.lastBackupAt=cloudLastBackupAt;
+     if(!options.quiet)toast('Sincronização verificada: os dados já estavam iguais. Nenhum envio foi necessário.');
+   }else{
+     throw Object.assign(new Error('O Firebase retornou uma resposta de sincronização inesperada.'),{code:'cloud-snapshot-invalid'});
+   }
+   if(localStorage.getItem('gatosudokuai_cloud_cleared_uid')===uid)localStorage.removeItem('gatosudokuai_cloud_cleared_uid');
+   saveState({skipCloud:true,preserveTimestamp:true});cloudSyncStatus='ok';cloudSyncError='';cloudReadyUid=uid;pendingCloudConflict=null;
+   if(result?.direction!=='download'&&cloudContentFingerprint(syncSnapshotFromLocal())!==cloudContentFingerprint(initialSnapshot)){cloudSavePending=true;cloudForcePending=false;}
+   refreshAccountUI();return true;
+ }catch(err){
+   console.warn('Sincronização não confirmada:',err);
+   const awaitingManualResync=localStorage.getItem('gatosudokuai_cloud_cleared_uid')===uid;
+   cloudReadyUid=awaitingManualResync?'':uid;cloudSyncStatus='error';
+   cloudSyncError=err?.message?`${err?.code||'erro'}: ${err.message}`:(err?.code||'offline');
+   if(!options.quiet||options.queued)toast(`Sincronização não confirmada: ${cloudErrorText(cloudSyncError)}.`);
+   refreshAccountUI();return false;
+ }finally{
+   cloudSyncBusy=false;
+   if(cloudSavePending&&cloudReadyUid===profile.uid&&!cloudSaveTimer)cloudSaveTimer=setTimeout(runQueuedCloudSync,cloudForcePending?120:900);
+ }
+}
+async function resolveCloudConflict(choice){
+ const conflict=pendingCloudConflict,uid=profile.uid;
+ if(!conflict||conflict.uid!==uid||!isLoggedIn()||window.GatoSudokuAuth?.user?.uid!==uid){toast('A decisão de conflito expirou. Entre na conta e sincronize novamente.');pendingCloudConflict=null;return false;}
+ if(choice==='cloud'){
+   const ok=applyCloudSnapshot(conflict.remoteSnapshot);
+   if(!ok){cloudSyncStatus='error';cloudSyncError='local-save-failed: não foi possível gravar localmente a cópia escolhida da nuvem';refreshAccountUI();return false;}
+   cloudLastBackupAt=conflict.lastBackupAt||conflict.remoteAt||0;profile.lastBackupAt=cloudLastBackupAt;
+   pendingCloudConflict=null;closeModal();cloudReadyUid=uid;cloudSyncStatus='warning';cloudSyncError='A cópia da nuvem foi escolhida. O aplicativo vai gravá-la novamente para confirmar a data de backup.';
+   saveState({skipCloud:true,preserveTimestamp:true});cloudSavePending=true;cloudForcePending=true;refreshAccountUI();
+   if(!cloudSaveTimer)cloudSaveTimer=setTimeout(runQueuedCloudSync,120);toast('Cópia da nuvem aplicada. Registrando um novo backup de confirmação…');return true;
+ }
+ if(choice==='device'){
+   pendingCloudConflict=null;closeModal();cloudReadyUid=uid;cloudSavePending=false;cloudForcePending=false;
+   return await syncCloudNow({quiet:false,manual:true,forceUpload:true});
+ }
+ return false;
 }
 function refreshAccountUI(){
   if(currentView==='settings'&&settingsCategory==='account')renderApp();
@@ -872,7 +971,7 @@ function renderSettings(){
    const lock=connected?'disabled aria-disabled="true"':'';
    const anonLock=(connected||profile.guestNameConfirmed)?'disabled aria-disabled="true"':'';
    const lockClass=connected?' connection-option is-disabled':' connection-option';
-   const cloudPanel=connected?`<div class="cloud-account-panel"><div style="display:flex;align-items:center;gap:10px"><div class="medal">☁️</div><div style="flex:1;min-width:0"><strong>Conta conectada · ${profile.provider==='google'?'Google':'E-mail e senha'}</strong><div class="cloud-account-email">${esc(email||'E-mail não disponível')}</div><div class="cloud-last-backup" id="cloud-backup-status">${esc(cloudStatusText())}</div></div><button class="btn btn-outline sync-mini" data-action="sync-cloud" ${cloudSyncBusy?'disabled':''} aria-label="Sincronizar agora" title="Enviar e receber o progresso mais atual">${cloudSyncBusy?'…':'↻'}</button></div><p class="muted small" style="margin:9px 0 0">O progresso é salvo neste aparelho e sincronizado automaticamente. A sincronização compara as versões e mantém a mais recente.</p><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px"><button class="btn btn-ghost btn-sm" data-action="confirm-delete-cloud" ${cloudDeleteBusy||cloudSyncBusy?'disabled':''} style="color:var(--bad);padding:6px 8px;font-weight:650">${cloudDeleteBusy?'Apagando…':'Apagar dados da nuvem'}</button><button class="btn btn-outline btn-sm" data-action="auth-signout">Sair da conta</button></div></div>`:'';
+   const cloudPanel=connected?`<div class="cloud-account-panel"><div style="display:flex;align-items:center;gap:10px"><div class="medal">☁️</div><div style="flex:1;min-width:0"><strong>Conta conectada · ${profile.provider==='google'?'Google':'E-mail e senha'}</strong><div class="cloud-account-email">${esc(email||'E-mail não disponível')}</div><div class="cloud-last-backup" id="cloud-backup-status">${esc(cloudStatusText())}</div></div><button class="btn btn-outline sync-mini" data-action="sync-cloud" ${cloudSyncBusy?'disabled':''} aria-label="Sincronizar agora" title="Enviar e receber o progresso mais atual">${cloudSyncBusy?'…':'↻'}</button></div><p class="muted small" style="margin:9px 0 0">O progresso é salvo neste aparelho e sincronizado automaticamente. A sincronização compara as versões e mantém a mais recente.</p>${String(cloudSyncError).includes('cloud-snapshot-invalid')?'<button class="btn btn-outline btn-sm" data-action="repair-cloud-backup">Reparar backup remoto usando este dispositivo</button>':''}<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px"><button class="btn btn-ghost btn-sm" data-action="confirm-delete-cloud" ${cloudDeleteBusy||cloudSyncBusy?'disabled':''} style="color:var(--bad);padding:6px 8px;font-weight:650">${cloudDeleteBusy?'Apagando…':'Apagar dados da nuvem'}</button><button class="btn btn-outline btn-sm" data-action="auth-signout">Sair da conta</button></div></div>`:'';
    content=`<div class="settings-card"><h3>☁️ Conta e armazenamento</h3><p>Seu progresso fica salvo neste dispositivo. Ao conectar Google ou e-mail, o jogo também envia os dados para a nuvem e recupera a versão mais recente ao entrar.</p><div class="setting-row"><div><strong>Nome do jogador</strong><small>Aparece no topo do app e no ranking global. Use até 30 caracteres e evite colocar seu e-mail ou dados pessoais.</small></div></div><form id="name-form" class="name-form"><input id="player-name-input" type="text" maxlength="30" autocomplete="nickname" value="${esc(profile.name==='Convidado'?'':profile.name)}" placeholder="Convidado" aria-label="Nome do jogador"><button type="submit" class="btn btn-primary btn-sm">Salvar</button></form>${cloudPanel}<div class="achievement"><div class="medal">📱</div><div style="flex:1"><strong>Este dispositivo</strong><small>Partidas, configurações e progresso ficam salvos localmente, inclusive sem internet.</small></div><span class="mode-tag">Local</span></div><div class="achievement${lockClass}${profile.guestNameConfirmed?' is-disabled':''}"><div class="medal">🕵️</div><div style="flex:1"><strong>Modo anônimo</strong><small>${connected?'Indisponível enquanto uma conta está conectada. Saia da conta para voltar ao modo local.':profile.guestNameConfirmed?'Nome já definido para este perfil neste dispositivo. O modo anônimo não pode ser iniciado novamente por este botão.':'Jogue sem conta. O nome e o progresso ficam neste dispositivo.'}</small></div><button class="btn btn-soft btn-sm" data-action="auth-anonymous" ${anonLock}>${profile.guestNameConfirmed?'Já utilizado':'Usar'}</button></div><div class="achievement${lockClass}"><div class="medal">🔵</div><div style="flex:1"><strong>Conta Google</strong><small>${connected?'As opções de conexão ficam bloqueadas enquanto você estiver conectado.':'Entre com o Google para associar seu progresso à conta e participar do ranking global.'}</small></div><button class="btn btn-outline btn-sm" data-action="auth-google" ${lock}>${connected?'Indisponível':'Conectar'}</button></div><div class="achievement${lockClass}"><div class="medal">✉️</div><div style="flex:1"><strong>E-mail e senha</strong><small>${connected?'As opções de conexão ficam bloqueadas enquanto você estiver conectado.':'Entre ou crie uma conta com e-mail e senha para sincronizar seu progresso.'}</small></div><button class="btn btn-outline btn-sm" data-action="auth-email" ${lock}>${connected?'Indisponível':'Abrir'}</button></div><div class="setting-row"><div><strong>Perfil atual</strong><small>${esc(profile.name)} · ${esc(connected?(profile.provider==='google'?'Google':'E-mail'):'Anônimo (sem ranking)')}</small></div><button class="btn btn-soft btn-sm" data-action="account">Gerenciar</button></div><button class="btn btn-outline btn-block" style="margin-top:14px" data-action="export-data">⬇ Exportar backup local</button><label class="btn btn-outline btn-block" style="margin-top:8px;cursor:pointer">⬆ Importar backup<input type="file" id="import-backup" accept="application/json" hidden></label></div>`;
   }
  else content=`<div class="settings-card"><h3>ℹ️ Como jogar</h3><p><b>Objetivo:</b> preencher todas as casas para que cada linha, cada coluna e cada bloco contenha todos os números do tabuleiro, sem repetir nenhum.</p>
@@ -886,7 +985,7 @@ function renderSettings(){
  <div class="achievement"><div class="medal">🗺️</div><div><strong>Campanha — Reino dos Gatos</strong><small>16 fases em sequência, de tabuleiros pequenos a 9×9 difíceis. Cada vitória libera a próxima fase e dá 1 a 3 estrelas (3 sem dicas, 2 com até 2 dicas). Ao abrir o mapa, seu gatinho percorre o caminho conquistado.</small></div></div>
  <div class="achievement"><div class="medal">🪙</div><div><strong>Pontos e XP</strong><small>Pontos servem para comprar dicas. XP sobe seu nível. Ambos crescem com as casas vazias e a dificuldade, com bônus por não errar, não usar dicas e terminar rápido. Cada nível pede um pouco mais de XP que o anterior.</small></div></div>
  <div class="achievement"><div class="medal">🌍</div><div><strong>Ranking global</strong><small>Na aba Progresso, entre com uma conta para ver os 10 melhores de cada categoria e nível. Só seu nome de jogador, a pontuação e a data e hora são compartilhados.</small></div></div>
- <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.26 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.26</span></div></div>`;
+ <div class="achievement"><div class="medal">🛡️</div><div><strong>Sobre o GatoSudokuAI</strong><small>Versão 1.28 · Sudoku felino · Progresso salvo automaticamente neste aparelho.</small></div></div><div class="setting-row"><div><strong>Autor</strong><small>Rofran Pires · 2026</small></div><span class="mode-tag" data-action="version-secret-trigger" role="button" tabindex="0" title="Versão do aplicativo">v1.28</span></div></div>`;
  if(settingsCategory==='interface')content+=`<div class="settings-card pwa-settings-card"><h3>📲 Instalação do aplicativo</h3><p>Instale o GatoSudokuAI no dispositivo para abrir em uma janela própria. Depois da primeira carga, o jogo e os arquivos principais ficam disponíveis para uso offline; recursos de conta e ranking dependem de conexão.</p><div class="setting-row"><div><strong id="pwa-install-settings-title">Instalar GatoSudokuAI</strong><small data-pwa-install-status>O navegador mostrará a opção de instalação quando estiver disponível.</small></div><button class="btn btn-soft btn-sm" data-action="install-pwa" data-pwa-install-button>Instalar app</button></div></div>`;
  const pausedGameBanner=game&&game.status==='playing'&&game.paused?`<div class="pause-settings-return"><p>😴 Sua partida está pausada. O cronômetro continua parado enquanto você ajusta as preferências.</p><button class="btn btn-primary btn-sm" data-action="return-paused-game">Voltar à pausa</button></div>`:'';
  return `<div class="section-heading" style="margin-top:8px"><div><div class="eyebrow">Personalização</div><h1>Configurações</h1><p class="muted">Ajuste o jogo ao seu jeito.</p></div></div>${pausedGameBanner}<div class="settings-layout"><aside class="settings-nav">${nav.map(([id,label])=>`<button class="${settingsCategory===id?'active':''}" data-action="settings-category" data-category="${id}">${label}</button>`).join('')}</aside><div class="settings-content">${content}</div></div>`;
@@ -1162,7 +1261,22 @@ function redeemSecretCode(raw){
 }
 function openModal(type,data={}){
  modalState={type,...data};let title='',body='',buttons='';
- if(type==='daily-calendar'){const y=Number.isInteger(Number(data.year))?Number(data.year):new Date().getFullYear(),m=Number.isInteger(Number(data.month))?Math.max(0,Math.min(11,Number(data.month))):new Date().getMonth();title='Calendário do desafio diário';body=renderDailyCalendar(y,m);buttons=`<button class="btn btn-outline" data-action="close-modal">Fechar</button>`}
+ if(type==='cloud-conflict'){
+   const c=pendingCloudConflict||{},localDate=Number(c.localSnapshot?.updatedAt)||0,remoteDate=Number(c.remoteAt)||0;
+   title='Escolher a cópia correta';body=`<p>O aplicativo encontrou progresso neste dispositivo e na nuvem, mas uma ou ambas as cópias não têm uma data confiável para comparar. <b>Nenhuma delas foi sobrescrita.</b></p><div class="cloud-account-panel"><strong>📱 Este dispositivo</strong><p>${localDate?`Data local: ${esc(formatCloudTime(localDate))}`:'Data local: não registrada'}</p><p>O progresso atual deste dispositivo será mantido se você escolher esta opção.</p></div><div class="cloud-account-panel"><strong>☁️ Cópia na nuvem</strong><p>${remoteDate?`Data remota: ${esc(formatCloudTime(remoteDate))}`:'Data remota: não registrada'}</p><p>Escolher a nuvem substituirá o estado local pelo estado remoto.</p></div><p class="muted small">Para evitar perda de progresso, escolha a cópia que sabe estar correta. Depois será criado um novo registro de sincronização.</p>`;
+   buttons=`<button class="btn btn-primary" data-action="cloud-conflict-use-device">Manter este dispositivo e enviar à nuvem</button><button class="btn btn-outline" data-action="cloud-conflict-use-cloud">Usar a cópia da nuvem</button>`;
+ }
+ else if(type==='confirm-cloud-repair'){
+   title='Substituir backup remoto inconsistente?';body='<p>O aplicativo detectou que a cópia na nuvem está incompleta ou em formato inválido. Esta ação vai substituir o backup remoto pela cópia que está neste dispositivo.</p><p><b>Use somente se o progresso deste dispositivo for a cópia que deseja preservar.</b> Se não tiver certeza, exporte um backup local antes de continuar.</p>';
+   buttons=`<button class="btn btn-outline" data-action="close-modal">Cancelar</button><button class="btn btn-danger" data-action="confirm-cloud-repair">Substituir pela cópia local</button>`;
+ }
+ else if(type==='backup-report'){
+   const items=Array.isArray(data.reportMessages)?data.reportMessages:[],level=data.reportLevel||'warning';
+   title=data.reportTitle||'Relatório do backup';
+   body=`<p>${esc(data.reportSummary||'O arquivo foi analisado.')}</p>${items.length?`<ul style="padding-left:22px;display:grid;gap:7px">${items.slice(0,80).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${items.length>80?`<p>Mais ${items.length-80} inconsistência(s) não exibida(s) nesta lista.</p>`:''}`:''}<p class="muted small">${level==='error'?'Nenhum dado novo foi confirmado como salvo.':'Recomendamos exportar um novo backup atualizado depois de conferir o progresso.'}</p>`;
+   buttons=`${data.reportNeedsSync?'<button class="btn btn-primary" data-action="backup-report-continue-sync">Concluir e sincronizar</button>':''}<button class="btn btn-outline" data-action="export-data">Exportar novo backup</button><button class="btn btn-ghost" data-action="close-modal">Fechar</button>`;
+ }
+ else if(type==='daily-calendar'){const y=Number.isInteger(Number(data.year))?Number(data.year):new Date().getFullYear(),m=Number.isInteger(Number(data.month))?Math.max(0,Math.min(11,Number(data.month))):new Date().getMonth();title='Calendário do desafio diário';body=renderDailyCalendar(y,m);buttons=`<button class="btn btn-outline" data-action="close-modal">Fechar</button>`}
  else if(type==='secret-code'){title='Código especial';body=secretCodeForm();buttons=`<button class="btn btn-outline" data-action="close-modal">Cancelar</button>`}
  else if(type==='milestone-reward'){const items=Array.isArray(data.awards)?data.awards:[];title=items.length===1?'Novo marco alcançado!':'Novos marcos alcançados!';body=`<p>Você desbloqueou ${items.length} ${items.length===1?'novo marco':'novos marcos'} nesta partida.</p><div class="game-awards-summary">${items.map(x=>`<div class="game-award-line"><span>${x.icon||'🏆'}</span><span class="award-name"><b>${esc(x.name||'Marco felino')}</b>${x.desc?`<br><small>${esc(x.desc)}</small>`:''}</span><span class="award-reward">${x.group==='feline'&&x.reward?`+${numberFmt(x.reward)} 🪙`:'Conquistado'}</span></div>`).join('')}</div>`;buttons=`<button class="btn btn-primary" data-action="close-modal">Continuar</button>`}
  else if(type==='hint-menu'){title='Central de dicas';body=`<p>Escolha o tipo de ajuda. A primeira revelação desta partida é gratuita.</p><div class="achievement"><div class="medal">🧠</div><div style="flex:1"><strong>Dica de lógica</strong><small>Explica uma dedução · 10 pontos após a primeira dica.</small></div><button class="btn btn-soft btn-sm" data-action="smart-hint">Usar</button></div><div class="achievement"><div class="medal">✨</div><div style="flex:1"><strong>Revelar um número</strong><small>Preenche uma célula · 25 pontos após a primeira.</small></div><button class="btn btn-soft btn-sm" data-action="reveal-hint">Usar</button></div><div class="achievement"><div class="medal">✅</div><div style="flex:1"><strong>Conferir célula</strong><small>Verifica a resposta selecionada · 5 pontos.</small></div><button class="btn btn-soft btn-sm" data-action="check-cell">Conferir</button></div><div class="achievement"><div class="medal">🔍</div><div style="flex:1"><strong>Conferir tabuleiro</strong><small>Destaca os acertos e erros · 20 pontos.</small></div><button class="btn btn-soft btn-sm" data-action="check-board">Conferir</button></div>`;buttons=`<button class="btn btn-outline" data-action="close-modal">Fechar</button>`}
@@ -1171,7 +1285,7 @@ function openModal(type,data={}){
     title='Conta e perfil';
     if(isLoggedIn()){
       const email=profile.email||window.GatoSudokuAuth?.user?.email||'';
-      body=`<div class="achievement"><div class="medal">🐾</div><div style="flex:1;min-width:0"><strong>${esc(profile.name)}</strong><small>Conectado por ${profile.provider==='google'?'Google':'e-mail e senha'}</small><div class="cloud-account-email" style="margin-top:5px">${esc(email||'E-mail não disponível')}</div></div></div><div class="cloud-account-panel"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1"><strong>Backup e sincronização</strong><div class="cloud-last-backup">${esc(cloudStatusText())}</div></div><button class="btn btn-outline sync-mini" data-action="sync-cloud" ${cloudSyncBusy?'disabled':''} aria-label="Sincronizar agora" title="Enviar e receber o progresso mais atual">${cloudSyncBusy?'…':'↻'}</button></div><p class="muted small" style="margin:9px 0 0">O jogo compara os dados locais e remotos e usa a versão mais recente. Enquanto estiver sem conexão, seu progresso continua guardado neste dispositivo.</p></div><button class="btn btn-outline btn-block" data-action="auth-signout">Sair da conta</button>`;
+      body=`<div class="achievement"><div class="medal">🐾</div><div style="flex:1;min-width:0"><strong>${esc(profile.name)}</strong><small>Conectado por ${profile.provider==='google'?'Google':'e-mail e senha'}</small><div class="cloud-account-email" style="margin-top:5px">${esc(email||'E-mail não disponível')}</div></div></div><div class="cloud-account-panel"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1"><strong>Backup e sincronização</strong><div class="cloud-last-backup">${esc(cloudStatusText())}</div></div><button class="btn btn-outline sync-mini" data-action="sync-cloud" ${cloudSyncBusy?'disabled':''} aria-label="Sincronizar agora" title="Enviar e receber o progresso mais atual">${cloudSyncBusy?'…':'↻'}</button></div><p class="muted small" style="margin:9px 0 0">O jogo compara os dados locais e remotos e usa a versão mais recente. Enquanto estiver sem conexão, seu progresso continua guardado neste dispositivo.</p>${String(cloudSyncError).includes('cloud-snapshot-invalid')?'<button class="btn btn-outline btn-sm" data-action="repair-cloud-backup">Reparar backup remoto usando este dispositivo</button>':''}</div><button class="btn btn-outline btn-block" data-action="auth-signout">Sair da conta</button>`;
     }else{
       body=`<div class="achievement"><div class="medal">🐾</div><div style="flex:1"><strong>${esc(profile.name)}</strong><small>Modo anônimo neste dispositivo</small></div></div><p>Seu progresso está salvo neste aparelho. Conecte-se com Google ou e-mail para ativar a sincronização entre dispositivos.</p><button class="btn btn-outline btn-block" data-action="auth-google">🔵 Continuar com Google</button><button class="btn btn-outline btn-block" style="margin-top:8px" data-action="auth-email">✉️ Entrar com e-mail</button>${profile.guestNameConfirmed?'<button class="btn btn-soft btn-block" style="margin-top:8px" disabled>✓ Nome de convidado já definido</button><p class="muted small">Você já confirmou o nome deste perfil anônimo. Este botão não pode ser usado novamente neste dispositivo.</p>':'<button class="btn btn-soft btn-block" style="margin-top:8px" data-action="auth-anonymous">Continuar anonimamente</button><p class="muted small">Ao continuar anonimamente, você poderá escolher o nome do jogador. Depois da confirmação, esta opção ficará inativa neste dispositivo.</p>'}`;
     }
@@ -1189,7 +1303,7 @@ function openModal(type,data={}){
   else if(type==='visual-reward'){const gained=(data.styles||[]).filter(i=>progress.unlockedVisuals.includes(Number(i)));title=gained.length===1?'Novo estilo desbloqueado!':'Novos estilos desbloqueados!';body=`<p>Você concluiu uma fase da campanha e ganhou ${gained.length===1?'um novo estilo':'novos estilos'} sem gastar moedas.</p>${gained.map(i=>`<div class="visual-reward-card">${visualPreview(i)}<div><strong>${VISUAL_STYLES[i].name}</strong><small>${VISUAL_STYLES[i].desc}</small></div><button class="btn btn-primary btn-sm" data-action="use-reward-visual" data-visual="${i}">Usar agora</button></div>`).join('')}`;buttons=`<button class="btn btn-outline" data-action="close-modal">Continuar com o estilo atual</button>`}
   else if(type==='cat-completed'){const cat=Math.max(0,Math.min(3,Number(data.cat)||0));title='Missão felina concluída';body=`<img class="cat-mission-art" src="${campaignArtForCat(cat,'care')}" alt="${CAMPAIGN_CAT_NAMES[cat]} sendo bem cuidado no reinado"><p><b>${CAMPAIGN_CAT_NAMES[cat]}</b> já concluiu as 16 fases e agora está no reinado, sendo muito bem cuidado. Sua aparência de campeão foi desbloqueada!</p><div class="cat-mission-note">Você pode escolher este companheiro para rever sua jornada ou selecionar outro gato, que continuará do ponto em que parou.</div>`;buttons=`<button class="btn btn-primary" data-action="close-modal">Entendi</button>`}
  else if(type==='install-pwa'){title='Instalar GatoSudokuAI';const ua=navigator.userAgent||'',ios=/iPad|iPhone|iPod/.test(ua),android=/Android/i.test(ua);body=ios?'<p>No iPhone ou iPad, abra esta página no Safari, toque em <b>Compartilhar</b> e escolha <b>Adicionar à Tela de Início</b>.</p>':android?'<p>No Android, use o botão <b>Instalar app</b> quando aparecer. Se não aparecer, abra o menu do navegador (⋮) e escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</p>':'<p>No computador, procure o ícone de instalação na barra de endereço. Se não estiver disponível, abra o menu do navegador e procure <b>Instalar GatoSudokuAI</b> ou <b>Instalar aplicativo</b>.</p>';body+='<p>Para a instalação funcionar, acesse pelo endereço seguro HTTPS, como o GitHub Pages. Se acabou de publicar, recarregue a página após o primeiro carregamento.</p>';buttons='<button class="btn btn-primary" data-action="close-modal">Entendi</button>'}
- else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.26 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
+ else if(type==='about'){title='Sobre o GatoSudokuAI';body='<p>Versão 1.28 · Um jogo de Sudoku com gatinhos, desafio diário por data, campanha, recompensas e estilos visuais.</p><p>Autor: Rofran Pires · 2026.</p>';buttons=`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`}
  $('#modal').innerHTML=`<div class="modal-top"><h2 id="modal-title">${title}</h2><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></div><div class="modal-body">${body}</div><div class="modal-actions">${buttons}</div>`;$('#modal-backdrop').classList.toggle('game-style-modal',type==='board-style'&&currentView==='game');$('#modal-backdrop').classList.remove('hidden');
 }
 function closeModal(){const previousType=modalState&&modalState.type,resumeAfterStyle=!!(modalState&&modalState.resumeGameAfterModal);$('#modal-backdrop').classList.add('hidden');$('#modal-backdrop').classList.remove('game-style-modal');modalState=null;if(resumeAfterStyle&&game&&game.status==='playing'&&game.paused){game.paused=false;game.autoPaused=false;lastTick=Date.now();renderGameOnly();saveState()}if(previousType==='visual-reward'&&Array.isArray(pendingMilestoneNotice)&&pendingMilestoneNotice.length){const awards=pendingMilestoneNotice;pendingMilestoneNotice=null;openModal('milestone-reward',{awards})}}
@@ -1251,40 +1365,120 @@ function renderRanking(){
   const body=rankData.status==='loading'?'<div class="empty-state">Carregando ranking…</div>':rankData.status==='error'?`<div class="empty-state">⚠️ ${esc(rankData.error)}</div>`:rankData.rows.length?rows:'<div class="empty-state"><div class="emoji">🐾</div>Ninguém pontuou nesta categoria ainda. Seja o primeiro!</div>';
   return `<div class="section-heading"><div><div class="eyebrow">Ranking global</div><h2>Os 10 melhores · últimos 6 meses</h2></div><button class="btn btn-soft btn-sm" data-action="rank-refresh">↻ Atualizar</button></div><div class="panel rank-filters"><span class="field-label">Categoria</span>${seg([['normal','🧩 Clássico'],['time','⏱️ Tempo'],['campaign','🗺️ Campanha']],f.mode,'rank-mode','mode')}${camp?'<p class="muted small" style="margin:10px 0 0">Campanha: soma da melhor pontuação de cada fase concluída.</p>':`<span class="field-label" style="margin-top:12px">Tamanho</span>${seg([[4,'4×4'],[6,'6×6'],[9,'9×9']],f.size,'rank-size','size')}<span class="field-label" style="margin-top:12px">Nível</span>${seg([['Fácil','Fácil'],['Médio','Médio'],['Difícil','Difícil']],f.diff,'rank-diff','diff')}<p class="muted small" style="margin:10px 0 0">Vale a melhor pontuação de cada jogador na categoria. São exibidos apenas resultados dos últimos 6 meses.</p>`}</div><div class="panel rank-list">${body}</div>`;
 }
-function exportBackup(){const data={app:'GatoSudokuAI',version:'1.26',createdAt:new Date().toISOString(),settings,progress,profile,game,suspendedMainGame,suspendedDailyGame};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GatoSudokuAI-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Backup exportado. Guarde este arquivo atualizado.')}
-function importBackup(file){
- if(!file)return;const reader=new FileReader();reader.onload=()=>{
+function exportBackup(){
+ try{
+   const exportedProfile={name:String(profile?.name||'Convidado').slice(0,30),provider:String(profile?.provider||'anonymous'),uid:String(profile?.uid||''),email:String(profile?.email||''),guestNameConfirmed:!!profile?.guestNameConfirmed};
+   const data={app:'GatoSudokuAI',version:'1.28',schemaVersion:2,backupFormat:'gatosudokuai-json',createdAt:new Date().toISOString(),updatedAt:Number(localStateUpdatedAt)||0,settings,progress,profile:exportedProfile,game,suspendedMainGame,suspendedDailyGame,currentView};
+   // As propriedades essenciais continuam na raiz para preservar a compatibilidade com importadores antigos.
+   const serialized=JSON.stringify(data,null,2);if(!serialized||serialized==='{}')throw new Error('empty-export');
+   const blob=new Blob([serialized],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download=`GatoSudokuAI-backup-v1.28-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+   toast('Backup exportado. O arquivo inclui configurações, progresso e partidas em andamento, sem credenciais da conta.');return true;
+ }catch(err){console.warn('Exportação do backup:',err);openModal('backup-report',{reportLevel:'error',reportTitle:'Falha ao exportar backup',reportSummary:'O arquivo não pôde ser preparado. O progresso em memória não foi alterado.',reportMessages:[String(err?.message||err)]});return false;}
+}
+function backupPlainObject(value){return !!(value&&typeof value==='object'&&!Array.isArray(value));}
+function unwrapBackup(raw){
+ let d=raw;
+ for(let i=0;i<5;i++){
+   if(!backupPlainObject(d))break;
+   if(d.app||d.settings||d.progress||d.game||d.suspendedMainGame||d.suspendedDailyGame)break;
+   let nested=d.state??d.data??d.payload??d.backup??d.gatosudokuai_state??null;
+   if(typeof nested==='string'){try{nested=JSON.parse(nested)}catch(_){nested=null}}
+   if(!backupPlainObject(nested))break;d=nested;
+ }
+ return d;
+}
+function backupObjectTypeOk(value,defaultValue){
+ if(Array.isArray(defaultValue))return Array.isArray(value);
+ if(defaultValue===null)return value===null||['string','number','boolean'].includes(typeof value)||backupPlainObject(value)||Array.isArray(value);
+ if(typeof defaultValue==='number')return Number.isFinite(Number(value))&&value!==null&&value!=='';
+ if(typeof defaultValue==='boolean')return typeof value==='boolean';
+ if(typeof defaultValue==='string')return typeof value==='string';
+ if(backupPlainObject(defaultValue))return backupPlainObject(value);
+ return typeof value===typeof defaultValue;
+}
+function normalizeBackupSettings(saved,warnings){
+ const clean={...DEFAULTS};
+ for(const [key,def] of Object.entries(DEFAULTS)){
+   if(!Object.prototype.hasOwnProperty.call(saved,key)){warnings.push(`Configuração ausente: “${key}”. Foi mantido o padrão atual.`);continue;}
+   const value=saved[key];if(!backupObjectTypeOk(value,def)){warnings.push(`Configuração inválida: “${key}”. Foi usado o padrão atual.`);continue;}
+   clean[key]=typeof def==='number'?Number(value):value;
+ }
+ for(const [key,value] of Object.entries(saved))if(!Object.prototype.hasOwnProperty.call(DEFAULTS,key))clean[key]=value;
+ return mergeSettings(clean);
+}
+function normalizeBackupProgress(saved,warnings){
+ const defaults=freshProgress(),clean={...defaults};
+ for(const [key,def] of Object.entries(defaults)){
+   if(!Object.prototype.hasOwnProperty.call(saved,key)){warnings.push(`Campo de progresso ausente: “${key}”. Foi aplicado o padrão para esse campo.`);continue;}
+   const value=saved[key];if(!backupObjectTypeOk(value,def)){warnings.push(`Campo de progresso inválido: “${key}”. Foi aplicado o padrão para esse campo.`);continue;}
+   clean[key]=typeof def==='number'?Number(value):value;
+ }
+ for(const [key,value] of Object.entries(saved))if(!Object.prototype.hasOwnProperty.call(defaults,key))clean[key]=value;
+ if(!Number.isFinite(Number(clean.xp))||Number(clean.xp)<0){warnings.push('O XP estava inválido; foi ajustado para zero.');clean.xp=0;}
+ if(!Number.isFinite(Number(clean.points))||Number(clean.points)<0){warnings.push('O saldo de moedas estava inválido; foi ajustado para zero.');clean.points=0;}
+ clean.level=levelInfo(clean.xp).level;
+ return clean;
+}
+function validateImportedGame(value,label,warnings,currentValue){
+ if(value===null)return null;
+ if(!backupPlainObject(value)){warnings.push(`${label}: o formato era inválido; a versão atual foi mantida.`);return currentValue;}
+ const n=Number(value.n);
+ if(!Number.isInteger(n)||n<4||n>9||!Array.isArray(value.grid)||!Array.isArray(value.solution)||value.grid.length!==n||value.solution.length!==n||!value.grid.every(r=>Array.isArray(r)&&r.length===n)||!value.solution.every(r=>Array.isArray(r)&&r.length===n)){
+   warnings.push(`${label}: tabuleiro incompleto ou incompatível; a versão atual foi mantida.`);return currentValue;
+ }
+ return value;
+}
+async function importBackup(file){
+ if(!file)return;const reader=new FileReader();reader.onload=async()=>{
+  const old={settings,progress,profile,game,suspendedMainGame,suspendedDailyGame,currentView,localStateUpdatedAt,localStateExists};
   try{
-   let raw=JSON.parse(reader.result);if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('invalid');
-   // Compatibilidade com backups antigos que guardavam o estado dentro de state/data ou exportavam o estado local diretamente.
-   let d=raw;for(let i=0;i<3;i++){if(d&&typeof d==='object'&&!Array.isArray(d)){if(d.app==='GatoSudokuAI'||d.settings||d.progress||d.game||d.suspendedMainGame||d.suspendedDailyGame)break;const nested=d.state&&typeof d.state==='object'?d.state:d.data&&typeof d.data==='object'?d.data:d.gatosudokuai_state&&typeof d.gatosudokuai_state==='object'?d.gatosudokuai_state:null;if(!nested)break;d=nested;}}
-   if(d.app&&d.app!=='GatoSudokuAI')throw Error('wrong-app');
-   const hasSettings=!!(d.settings&&typeof d.settings==='object'&&!Array.isArray(d.settings));
-   const hasProgress=!!(d.progress&&typeof d.progress==='object'&&!Array.isArray(d.progress));
-   const hasRecognizableState=hasSettings||hasProgress||!!(d.game&&typeof d.game==='object')||!!(d.suspendedMainGame&&typeof d.suspendedMainGame==='object')||!!(d.suspendedDailyGame&&typeof d.suspendedDailyGame==='object');
-   if(!hasRecognizableState)throw Error('no-state');
-   const warnings=[];const version=String(d.version||raw.version||'');
-   if(!d.app)warnings.push('O arquivo não informa o nome do aplicativo; foi reconhecido pelo formato dos dados.');
-   if(!version||version!=='1.26')warnings.push('O backup é de uma versão antiga ou sem versão identificada.');
-   if(!hasSettings)warnings.push('As configurações não estavam no arquivo; as configurações atuais foram mantidas.');
-   if(!hasProgress)warnings.push('O progresso não estava no arquivo; o progresso atual foi mantido.');
-   const oldProgress=hasProgress?d.progress:{};const defaults=freshProgress();
-   if(hasProgress){for(const k of Object.keys(defaults))if(!Object.prototype.hasOwnProperty.call(oldProgress,k))warnings.push(`O backup não contém o campo de progresso “${k}”; foi aplicado o valor padrão.`);}
-   if(hasSettings){for(const k of Object.keys(DEFAULTS))if(!Object.prototype.hasOwnProperty.call(d.settings,k)){warnings.push(`Falta a configuração “${k}”; foi aplicado o valor padrão.`);}}
-   const nextSettings=hasSettings?mergeSettings(d.settings):settings;
-   const nextProgress=hasProgress?{...freshProgress(),...oldProgress}:progress;
-   const nextProfile=d.profile&&typeof d.profile==='object'&&!Array.isArray(d.profile)?{...profile,...d.profile}:profile;
-   const nextGame=Object.prototype.hasOwnProperty.call(d,'game')?(d.game||null):game;
-   const nextSuspendedMain=Object.prototype.hasOwnProperty.call(d,'suspendedMainGame')?(d.suspendedMainGame||null):suspendedMainGame;
-   const nextSuspendedDaily=Object.prototype.hasOwnProperty.call(d,'suspendedDailyGame')?(d.suspendedDailyGame||null):suspendedDailyGame;
-   // Só altera o estado depois que o arquivo foi validado e preparado.
+   let raw=JSON.parse(String(reader.result||''));if(!backupPlainObject(raw))throw Object.assign(new Error('O arquivo JSON não contém um objeto de backup válido.'),{code:'backup-invalid-json'});
+   let d=unwrapBackup(raw);if(!backupPlainObject(d))throw Object.assign(new Error('O arquivo não contém um estado reconhecível do jogo.'),{code:'backup-no-state'});
+   if(d.app&&d.app!=='GatoSudokuAI')throw Object.assign(new Error('Este arquivo identifica outro aplicativo, não o GatoSudokuAI.'),{code:'backup-wrong-app'});
+   const hasSettings=backupPlainObject(d.settings),hasProgress=backupPlainObject(d.progress);
+   const hasRecognizableState=hasSettings||hasProgress||backupPlainObject(d.game)||backupPlainObject(d.suspendedMainGame)||backupPlainObject(d.suspendedDailyGame);
+   if(!hasRecognizableState)throw Object.assign(new Error('O JSON foi lido, mas não contém configurações, progresso nem partidas reconhecíveis do GatoSudokuAI.'),{code:'backup-no-state'});
+   const warnings=[],version=String(d.version||raw.version||'');
+   if(!d.app)warnings.push('O arquivo não informa o aplicativo de origem; foi reconhecido pela estrutura dos dados.');
+   if(Number(d.schemaVersion)!==2)warnings.push('Backup em formato antigo ou sem número de esquema. Os campos conhecidos foram adaptados.');
+   if(version!=='1.28')warnings.push(`Versão de origem “${version||'não identificada'}”; a versão atual é 1.28. Campos ausentes ou novos podem precisar de atualização.`);
+   if(!hasSettings)warnings.push('O arquivo não contém configurações; as configurações atuais deste dispositivo foram mantidas.');
+   if(!hasProgress)warnings.push('O arquivo não contém progresso; o progresso atual deste dispositivo foi mantido.');
+   const nextSettings=hasSettings?normalizeBackupSettings(d.settings,warnings):settings;
+   const nextProgress=hasProgress?normalizeBackupProgress(d.progress,warnings):progress;
+   // Um backup transporta progresso, não a identidade de autenticação. Nunca substitui UID, provedor, e-mail nem status de nuvem.
+   let nextProfile={...profile};
+   const importedProfile=backupPlainObject(d.profile)?d.profile:null;
+   if(importedProfile&&typeof importedProfile.name==='string'&&importedProfile.name.trim())nextProfile.name=importedProfile.name.replace(/\s+/g,' ').trim().slice(0,30);
+   if(importedProfile&&typeof importedProfile.guestNameConfirmed==='boolean')nextProfile.guestNameConfirmed=importedProfile.guestNameConfirmed;
+   const nextGame=Object.prototype.hasOwnProperty.call(d,'game')?validateImportedGame(d.game,'Partida principal',warnings,game):game;
+   const nextSuspendedMain=Object.prototype.hasOwnProperty.call(d,'suspendedMainGame')?validateImportedGame(d.suspendedMainGame,'Partida suspensa principal',warnings,suspendedMainGame):suspendedMainGame;
+   const nextSuspendedDaily=Object.prototype.hasOwnProperty.call(d,'suspendedDailyGame')?validateImportedGame(d.suspendedDailyGame,'Desafio diário suspenso',warnings,suspendedDailyGame):suspendedDailyGame;
    settings=nextSettings;progress=nextProgress;profile=nextProfile;game=nextGame;suspendedMainGame=nextSuspendedMain;suspendedDailyGame=nextSuspendedDaily;
    ensureVisualProgressionData();reconcileVisualUnlocks();migrateLegacyCampaignProfiles();progress.level=levelInfo(progress.xp).level;
-   if(game&&game.status==='playing'){game.paused=true;game.autoPaused=true;}[suspendedMainGame,suspendedDailyGame].forEach(g=>{if(g&&g.status==='playing'){g.paused=true;g.autoPaused=true;}});
-   saveState({skipCloud:true});renderApp();
-   if(warnings.length){const summary=warnings.slice(0,3).join(' ');toast(`Backup antigo importado com compatibilidade. ${summary} ${warnings.length>3?`Há mais ${warnings.length-3} item(ns) adaptado(s). `:''}Exporte um novo backup para atualizar o formato.`);}else toast('Backup importado com sucesso. Recomendamos salvar um novo backup atualizado.');
-  }catch(err){console.warn('Falha ao importar backup GatoSudokuAI:',err);toast(err&&err.message==='wrong-app'?'Este backup pertence a outro aplicativo.':'Não foi possível reconhecer este backup. Nenhum dado foi alterado. Se for um backup antigo do GatoSudokuAI, envie o arquivo para adaptação.');}
- };reader.onerror=()=>toast('Não foi possível ler o arquivo de backup.');reader.readAsText(file);
+   if(game&&game.status==='playing'){game.paused=true;game.autoPaused=true;}
+   [suspendedMainGame,suspendedDailyGame].forEach(g=>{if(g&&g.status==='playing'){g.paused=true;g.autoPaused=true;}});
+   if(d.currentView&&['home','game','campaign','stats','settings'].includes(d.currentView))currentView=d.currentView==='game'&&game?'game':'home';
+   const sourceUpdatedAt=Number(d.updatedAt)||Number(d.localStateUpdatedAt)||0;localStateUpdatedAt=Math.max(Date.now(),sourceUpdatedAt+1);localStateExists=true;
+   if(!saveState({skipCloud:true,preserveTimestamp:true}))throw Object.assign(new Error('O arquivo foi lido e adaptado, mas o navegador não conseguiu salvar o resultado local. Verifique espaço e permissões; o estado anterior será restaurado.'),{code:'local-save-failed'});
+   renderApp();
+   const shouldSync=isLoggedIn()&&window.GatoSudokuAuth?.syncSnapshot&&cloudReadyUid===profile.uid;
+   if(warnings.length){
+     openModal('backup-report',{reportLevel:'warning',reportTitle:'Backup importado com avisos',reportSummary:`Importação concluída com ${warnings.length} aviso(s). Os campos incompatíveis foram adaptados ou mantidos como estavam; confira a lista antes de continuar.`,reportMessages:warnings,reportNeedsSync:shouldSync});
+   }else{
+     toast('Backup importado e salvo neste dispositivo.');
+     if(shouldSync)await syncCloudNow({quiet:false,manual:true});
+     else if(isLoggedIn())toast('Backup salvo localmente. A sincronização está pausada; toque em ↻ após conferir a conta.');
+   }
+  }catch(err){
+   settings=old.settings;progress=old.progress;profile=old.profile;game=old.game;suspendedMainGame=old.suspendedMainGame;suspendedDailyGame=old.suspendedDailyGame;currentView=old.currentView;localStateUpdatedAt=old.localStateUpdatedAt;localStateExists=old.localStateExists;renderApp();
+   console.warn('Falha ao importar backup GatoSudokuAI:',err);
+   openModal('backup-report',{reportLevel:'error',reportTitle:'Backup não importado',reportSummary:'A importação falhou e o estado anterior do jogo foi restaurado.',reportMessages:[String(err?.message||'Erro desconhecido'),String(err?.code||'sem código de erro')]});
+  }
+ };
+ reader.onerror=()=>openModal('backup-report',{reportLevel:'error',reportTitle:'Falha na leitura do backup',reportSummary:'O navegador não conseguiu ler o arquivo selecionado.',reportMessages:['Tente selecionar o arquivo .json novamente.']});
+ reader.readAsText(file);
 }
 
 document.addEventListener('click',e=>{
@@ -1348,6 +1542,11 @@ document.addEventListener('click',e=>{
  else if(a==='auth-google'){if(isLoggedIn())toast('Saia da conta atual antes de trocar a conexão.');else authAction('google');}
  else if(a==='auth-email'){if(isLoggedIn())toast('Saia da conta atual antes de trocar a conexão.');else openModal('email');}
  else if(a==='sync-cloud')syncCloudNow({quiet:false,manual:true});
+ else if(a==='cloud-conflict-use-cloud')resolveCloudConflict('cloud');
+ else if(a==='cloud-conflict-use-device')resolveCloudConflict('device');
+ else if(a==='repair-cloud-backup')openModal('confirm-cloud-repair');
+ else if(a==='confirm-cloud-repair'){closeModal();syncCloudNow({quiet:false,manual:true,forceUpload:true});}
+ else if(a==='backup-report-continue-sync'){closeModal();if(isLoggedIn()&&cloudReadyUid===profile.uid)syncCloudNow({quiet:false,manual:true});else toast('Backup importado localmente. Conecte a conta ou toque em sincronizar após a conexão ser confirmada.');}
  else if(a==='confirm-delete-cloud')openModal('confirm-delete-cloud');
  else if(a==='delete-cloud-data')deleteCloudDataFromFirebase();
  else if(a==='close-modal')closeModal();
@@ -1408,13 +1607,28 @@ document.addEventListener('touchend',e=>{
 // Timer uses timestamps to avoid drifting when a mobile browser throttles intervals.
 function timerTick(){if(!game||game.status!=='playing'||game.paused){lastTick=Date.now();return}const now=Date.now();const delta=Math.max(0,Math.floor((now-lastTick)/1000));if(!delta)return;lastTick+=delta*1000;game.elapsed=(game.elapsed||0)+delta;if(game.mode==='time'){const prevRemaining=game.remaining||0;game.remaining=Math.max(0,prevRemaining-delta);for(let s=prevRemaining-1;s>=game.remaining&&s>=1;s--){if(s===30)sfx('warn');else if(s<=3)sfx('tickHigh');else if(s<=10)sfx('tick')}if(game.remaining<=0){game.status='timeout';game.paused=false;game.savedAt=Date.now();sfx('lose');saveState();renderApp();toast('O tempo acabou! Tente superar seu recorde.');return}}
  const t=$('#game-timer');if(t){t.textContent=timeString(game.mode==='time'?game.remaining:game.elapsed);t.classList.toggle('urgent',game.mode==='time'&&game.remaining<=30)}if(game.elapsed%5===0)saveState()}
+window.addEventListener('gatosudoku-firebase-error',e=>{cloudReadyUid='';cloudSyncStatus='error';cloudSyncError=`Firebase não inicializado: ${String(e.detail?.message||'SDK ou configuração indisponível')}`;refreshAccountUI();});
+window.addEventListener('error',e=>{
+ const detail=`${String(e.message||'Erro de carregamento')}${e.filename?' · '+String(e.filename):''}`;
+ if(/firebase|firestore|gstatic\.com\/firebase|module script|importing a module/i.test(detail)){
+   cloudReadyUid='';cloudSyncStatus='error';cloudSyncError=`firebase-module-load-error: ${detail.slice(0,220)}`;
+   console.warn('Falha ao carregar o módulo Firebase:',e.error||detail);refreshAccountUI();
+ }
+});
+window.addEventListener('unhandledrejection',e=>{
+ const detail=String(e.reason?.message||e.reason||'');
+ if(/firebase|firestore|permission-denied|unavailable|network-request-failed/i.test(detail)){
+   cloudSyncStatus='error';cloudSyncError=`firebase-unhandled-rejection: ${detail.slice(0,220)}`;
+   console.warn('Erro de promessa relacionado ao Firebase:',e.reason);refreshAccountUI();
+ }
+});
 window.addEventListener('gatosudoku-auth',async e=>{
   const u=e.detail&&e.detail.user;
    if(u){
      profile={...profile,name:u.name||profile.name,provider:u.provider,uid:u.uid,email:u.email||profile.email||'',lastBackupAt:cloudLastBackupAt||Number(profile.lastBackupAt)||0};
      const waitingForManualResync=localStorage.getItem('gatosudokuai_cloud_cleared_uid')===u.uid;
-     cloudReadyUid=waitingForManualResync?'':u.uid;saveState({skipCloud:true,preserveTimestamp:true});renderApp();
-     if(!waitingForManualResync){await syncCloudNow({quiet:true,initial:true});if(cloudSyncStatus==='error')toast(`Conta conectada. ${cloudErrorText(cloudSyncError)}. O progresso continua salvo neste dispositivo.`);}else{cloudLastBackupAt=0;cloudSyncStatus='idle';} 
+     cloudReadyUid='';saveState({skipCloud:true,preserveTimestamp:true});renderApp();
+     if(!waitingForManualResync){await syncCloudNow({quiet:true,initial:true});if(cloudSyncStatus==='error')toast(`Conta conectada. ${cloudErrorText(cloudSyncError)}. O progresso continua salvo neste dispositivo.`);}else{cloudLastBackupAt=0;cloudSyncStatus='idle';cloudReadyUid='';} 
 
    }else{
      cloudReadyUid='';cloudSavePending=false;cloudForcePending=false;if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;}
@@ -1509,52 +1723,96 @@ try{
       return{deletedRankingRows:rows.size};
     },
      /* Sincroniza o estado privado do jogador no mesmo documento protegido do próprio UID. A transação evita substituir um snapshot com marca temporal mais nova. */
-     async syncSnapshot(localSnapshot){
-       const u=auth.currentUser;if(!u)throw new Error('not-authenticated');
-       // O estado local pode conter propriedades undefined em estruturas opcionais.
-       // O Firestore rejeita esses valores com invalid-argument; removê-los antes da gravação
-       // mantém os dados válidos sem alterar o estado salvo no aparelho.
-       // Restaura os arrays que foram representados por objetos para atender ao Firestore.
-       // Deve ficar no escopo de syncSnapshot, pois é usada ao baixar um backup remoto.
+     async syncSnapshot(localSnapshot,options={}){
+       const u=auth.currentUser;if(!u)throw Object.assign(new Error('Faça login novamente antes de sincronizar.'),{code:'not-authenticated'});
+       const ARRAY_MARKER='_gsaNestedArrayV1_',FIELD_KEY_MARKER='_gsaEscapedFieldKeyV1_';
+       const keyNeedsEncoding=key=>key===''||/__.*__/.test(key)||key.startsWith(ARRAY_MARKER)||key.startsWith(FIELD_KEY_MARKER);
+       const encodeKey=key=>{
+         if(!keyNeedsEncoding(key))return key;
+         const bytes=new TextEncoder().encode(key);return FIELD_KEY_MARKER+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+       };
+       const decodeKey=key=>{
+         if(!key.startsWith(FIELD_KEY_MARKER))return key;
+         const hex=key.slice(FIELD_KEY_MARKER.length);if(!hex||hex.length%2||!/^[0-9a-f]+$/i.test(hex))return key;
+         try{return new TextDecoder().decode(Uint8Array.from(hex.match(/.{2}/g),b=>parseInt(b,16)))}catch(_){return key}
+       };
        const restoreNestedArrays=value=>{
          if(Array.isArray(value))return value.map(restoreNestedArrays);
          if(value&&typeof value==='object'){
            const keys=Object.keys(value);
-           if(value._gsaNestedArrayV1_===true&&keys.length===2&&Array.isArray(value.value))return restoreNestedArrays(value.value);
-           const out={};for(const [key,item] of Object.entries(value))out[key]=restoreNestedArrays(item);return out;
+           if(value[ARRAY_MARKER]===true&&keys.length===2&&Array.isArray(value.value))return restoreNestedArrays(value.value);
+           const out={};
+           for(const [rawKey,item] of Object.entries(value)){
+             const key=decodeKey(rawKey);
+             if(Object.prototype.hasOwnProperty.call(out,key))throw Object.assign(new Error('A cópia remota possui campos duplicados após decodificar nomes protegidos.'),{code:'cloud-snapshot-invalid'});
+             out[key]=restoreNestedArrays(item);
+           }
+           return out;
          }
          return value;
        };
-       const sanitizeForFirestore=value=>{
+       const sanitizeForFirestore=(value,insideArray=false)=>{
          if(value===undefined||typeof value==='function'||typeof value==='symbol')return undefined;
+         if(typeof value==='bigint')return String(value);
+         if(typeof value==='number'&&!Number.isFinite(value))return null;
          if(value===null||typeof value!=='object')return value;
+         if(value instanceof Date)return Number.isFinite(value.getTime())?value.getTime():null;
          if(Array.isArray(value))return value.map(item=>{
-           const cleaned=sanitizeForFirestore(item);
+           const cleaned=sanitizeForFirestore(item,true);
            if(cleaned===undefined)return null;
-           return Array.isArray(cleaned)?{_gsaNestedArrayV1_:true,value:cleaned}:cleaned;
+           return Array.isArray(cleaned)?{[ARRAY_MARKER]:true,value:cleaned}:cleaned;
          });
          const out={};
          for(const [key,item] of Object.entries(value)){
-           const cleaned=sanitizeForFirestore(item);
-           if(cleaned!==undefined)out[key]=cleaned;
+           const cleaned=sanitizeForFirestore(item,false);
+           if(cleaned!==undefined)out[encodeKey(key)]=cleaned;
          }
          return out;
        };
        const safeSnapshot=sanitizeForFirestore(localSnapshot);
+       if(!safeSnapshot||!safeSnapshot.settings||!safeSnapshot.progress)throw Object.assign(new Error('O estado local não contém as configurações e o progresso necessários.'),{code:'cloud-snapshot-invalid'});
+       let serialized;
+       try{serialized=JSON.stringify(safeSnapshot)}catch(e){throw Object.assign(new Error('Não foi possível preparar o estado local para o Firestore.'),{code:'cloud-snapshot-invalid',cause:e})}
+       const byteLength=new TextEncoder().encode(serialized).length;
+       if(byteLength>850000)throw Object.assign(new Error(`O estado local ocupa cerca de ${byteLength} bytes e excede o limite preventivo de 850.000 bytes para manter o documento abaixo do limite do Firestore.`),{code:'snapshot-too-large'});
        const ref=doc(db,'users',u.uid);
        return await runTransaction(db,async tx=>{
-         const snap=await tx.get(ref),data=snap.exists()?snap.data():{},remote=data.cloudSnapshot||null;
-         const remoteAt=Number(remote&&remote.updatedAt)||Number(data.cloudSnapshotUpdatedAtMs)||0;
-         const localAt=Number(safeSnapshot&&safeSnapshot.updatedAt)||0;
+         const snap=await tx.get(ref),data=snap.exists()?snap.data():{},remoteRaw=data.cloudSnapshot||null;
+         const remoteAt=Number(remoteRaw&&remoteRaw.updatedAt)||Number(data.cloudSnapshotUpdatedAtMs)||0;
+         const localAt=Number(safeSnapshot.updatedAt)||0;
          const storedBackupAt=Number(data.cloudBackupAtMs)||(data.cloudBackupAt&&typeof data.cloudBackupAt.toMillis==='function'?data.cloudBackupAt.toMillis():0);
-         // Se este dispositivo não tinha um estado salvo, nunca substituir um backup remoto
-         // por valores padrão só porque os timestamps locais estão ausentes ou empatados.
-         const hasUsableLocal=!!(safeSnapshot&&safeSnapshot.progress&&safeSnapshot.settings&&localAt>0);
-         if(remote&&(!hasUsableLocal||remoteAt>localAt)){
-           return{direction:'download',snapshot:restoreNestedArrays(remote),lastBackupAt:storedBackupAt||remoteAt};
+         let remote=null;
+         if(remoteRaw&&!options.forceUpload){
+           try{remote=restoreNestedArrays(remoteRaw)}catch(e){throw Object.assign(new Error(`A cópia remota não pode ser decodificada: ${e.message||e}`),{code:'cloud-snapshot-invalid'})}
+           if(!remote||typeof remote!=='object'||Array.isArray(remote)||!remote.settings||typeof remote.settings!=='object'||Array.isArray(remote.settings)||!remote.progress||typeof remote.progress!=='object'||Array.isArray(remote.progress)||(remote.profile!=null&&(typeof remote.profile!=='object'||Array.isArray(remote.profile)))||['game','suspendedMainGame','suspendedDailyGame'].some(k=>remote[k]!=null&&(typeof remote[k]!=='object'||Array.isArray(remote[k])))){
+             throw Object.assign(new Error('O documento remoto contém cloudSnapshot, mas faltam settings ou progress. A cópia local não foi enviada por cima automaticamente.'),{code:'cloud-snapshot-invalid'});
+           }
          }
-         const stamp=Math.max(Date.now(),localAt||0),outgoing={...safeSnapshot,updatedAt:stamp};
-         tx.set(ref,{cloudSnapshot:outgoing,cloudSnapshotUpdatedAtMs:stamp,cloudBackupAt:serverTimestamp(),cloudBackupAtMs:stamp,updatedAt:serverTimestamp()},{merge:true});
+         if(remote&&!options.forceUpload){
+           const contentKey=value=>{const copy={...value};delete copy.updatedAt;if(copy.profile&&typeof copy.profile==='object'){copy.profile={...copy.profile};delete copy.profile.lastBackupAt;}return JSON.stringify(copy)};
+           const sameContent=contentKey(safeSnapshot)===contentKey(sanitizeForFirestore(remote));
+           if(sameContent)return{direction:'unchanged',snapshot:remote,remoteAt,lastBackupAt:storedBackupAt||remoteAt};
+           const hasUsableLocal=!!(safeSnapshot.settings&&safeSnapshot.progress&&localAt>0);
+           if(!hasUsableLocal&&options.localStateExists&&options.hasMeaningfulLocal){
+             return{direction:'conflict',snapshot:remote,remoteAt,lastBackupAt:storedBackupAt||remoteAt,reason:'local-timestamp-missing'};
+           }
+           if(remoteAt<=0&&options.localStateExists&&options.hasMeaningfulLocal){
+             return{direction:'conflict',snapshot:remote,remoteAt:0,lastBackupAt:storedBackupAt,reason:'remote-timestamp-missing'};
+           }
+           if(!hasUsableLocal||remoteAt>localAt){return{direction:'download',snapshot:remote,remoteAt,lastBackupAt:storedBackupAt||remoteAt};}
+           if(localAt===remoteAt&&options.localStateExists&&options.hasMeaningfulLocal){
+             const keys=['settings','progress','game','suspendedMainGame','suspendedDailyGame','currentView'];
+             const pick=o=>Object.fromEntries(keys.map(k=>[k,o?.[k]??null]));
+             const localContent=JSON.stringify(pick(safeSnapshot));
+             const remoteContent=JSON.stringify(pick(sanitizeForFirestore(remote)));
+             if(localContent!==remoteContent)return{direction:'conflict',snapshot:remote,remoteAt,lastBackupAt:storedBackupAt||remoteAt,reason:'equal-timestamps-different-data'};
+           }
+         }
+         // Força a gravação apenas após ação explícita do usuário ou quando não há conflito de versão.
+         const stamp=Math.max(Date.now(),localAt+1,remoteAt+1),outgoing={...safeSnapshot,updatedAt:stamp};
+         const outgoingBytes=new TextEncoder().encode(JSON.stringify(outgoing)).length;
+         if(outgoingBytes>850000)throw Object.assign(new Error(`A cópia preparada possui ${outgoingBytes} bytes; reduza ou exporte o backup local antes de sincronizar.`),{code:'snapshot-too-large'});
+         tx.set(ref,{cloudSnapshot:outgoing,cloudSnapshotSchema:2,cloudSnapshotUpdatedAtMs:stamp,cloudSnapshotBytes:outgoingBytes,cloudBackupAt:serverTimestamp(),cloudBackupAtMs:stamp,updatedAt:serverTimestamp()},{merge:true});
          return{direction:'upload',snapshot:outgoing,lastBackupAt:stamp};
        });
      },
@@ -1570,8 +1828,9 @@ try{
       // Exibe somente resultados concluídos nos últimos seis meses. Busca por data
       // e ordena as pontuações localmente para não limitar o ranking aos registros antigos.
       const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-6);
-      const snap=await getDocs(query(collection(db,'leaderboard'),where('board','==',board),where('completedAt','>=',Timestamp.fromDate(cutoff)),orderBy('completedAt','desc')));
-      const rows=snap.docs.map(d=>{const x=d.data();return{uid:x.uid,name:x.name,score:Number(x.score)||0,time:Number(x.time)||0,at:x.completedAt&&x.completedAt.toMillis?x.completedAt.toMillis():0}});
+      const snap=await getDocs(query(collection(db,'leaderboard'),where('board','==',board)));
+      const cutoffMs=cutoff.getTime();
+      const rows=snap.docs.map(d=>{const x=d.data();return{uid:x.uid,name:x.name,score:Number(x.score)||0,time:Number(x.time)||0,at:x.completedAt&&x.completedAt.toMillis?x.completedAt.toMillis():0}}).filter(row=>row.at>=cutoffMs);
       rows.sort((a,b)=>b.score-a.score||a.time-b.time||b.at-a.at);
       return rows.slice(0,10);
     }
@@ -1581,7 +1840,7 @@ try{
     const provider=providerOf(user),name=await ensureProfile(user,provider,'');
     window.dispatchEvent(new CustomEvent('gatosudoku-auth',{detail:{user:{uid:user.uid,name,provider,email:user.email||''}}}));
   });
-}catch(e){console.warn('Firebase indisponível:',e)}
+}catch(e){console.warn('Firebase indisponível:',e);window.dispatchEvent(new CustomEvent('gatosudoku-firebase-error',{detail:{message:String(e?.message||e),code:String(e?.code||'firebase-init-error')}}))}
 </script>
 </body>
 </html>
